@@ -37,7 +37,7 @@ function progressive_profiling_fields_table_form($form, &$form_state) {
     // the admin can delete if from the progressive profiling.
     // @todo: should we maybe delete the field automatically?
     $row['field_name'] = !empty($field_info[$field_name]) ? $field_info[$field_name]['label'] . ' (' . $field_name . ')' : t('--Missing field--') . ' (' . $field_name . ')';
-    $row['conf'] = 'conf';
+    $row['conf'] = l(t('add'), $base_admin_url . '/fields/conditions/' . $field_name . '/add', array('query' => drupal_get_destination()));
     $actions = array();
     if (!empty($field->status)) {
       $row['status'] = '<span style="color: green">' . t('Enabled') . '</span>';
@@ -116,15 +116,27 @@ function progressive_profiling_add_field_form() {
   foreach ($available_fields as $field_name => $field) {
     $options[$field_name] = $field['label'] . ' (' . $field_name . ')';
   }
-  $form['field_name'] = array(
+  $form['add'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Add field'),
+    '#collapsible' => TRUE,
+    '#collapsed' => TRUE,
+  );
+  $form['add']['field_name'] = array(
     '#type' => 'select',
     '#options' => $options,
     '#title' => t('Field name'),
     '#description' => t('Please select the field which you want to add to the progressive profiling pool.'),
   );
-  $form['submit'] = array(
+  $form['add']['actions'] = array(
+    '#type' => 'actions',
+  );
+  $form['add']['actions']['submit'] = array(
     '#type' => 'submit',
     '#value' => t('Add'),
+  );
+  $form['add']['actions']['create'] = array(
+    '#markup' => '<span>' . t('or') . '</span> ' . l(t('Create a new field'), 'admin/config/people/accounts/fields', array('query' => drupal_get_destination())),
   );
   return $form;
 }
@@ -260,5 +272,93 @@ function progressive_profiling_fields_delete_confirm_submit($form, &$form_state)
  * Menu callback for the general progressive profilling settings page.
  */
 function progressive_profiling_settings() {
-  return array('#markup' => 'settings');
+  return array('#markup' => 'No special settings yet.');
+}
+
+/**
+ * Page callback for adding a the condition to the field.
+ *
+ * @param object $field
+ *  The profiling field object.
+ */
+function progressive_profiling_fields_conditions_add($field) {
+  ctools_include('context');
+  return drupal_get_form('progressive_profiling_condition_form', $field);
+}
+
+/**
+ * Form constructor for a field condition.
+ *
+ * @param object $field
+ *  The profiling field object.
+ */
+function progressive_profiling_condition_form($form, &$form_state, $field) {
+  // The calling function must include the ctools contexts.
+  // @see progressive_profiling_fields_conditions_add().
+
+  // Check if we should show the condition configuration form.
+  if (isset($form_state['storage']['condition_configuration'])) {
+    return progressive_profiling_condition_configuration_form($form, $form_state, $field);
+  }
+  $plugins = ctools_get_relevant_access_plugins(array());
+  $options = array();
+  foreach ($plugins as $id => $plugin) {
+    $options[$id] = $plugin['title'];
+  }
+  asort($options);
+  $form['condition_type'] = array(
+    '#type' => 'select',
+    '#options' => $options,
+    '#title' => t('Condition type')
+  );
+  $form['field_name'] = array(
+    '#type' => 'value',
+    '#value' => $field->field_name,
+  );
+  $form['next'] = array(
+    '#type' => 'submit',
+    '#value' => t('Next'),
+  );
+  $form_state['step'] = 'condition';
+
+  return $form;
+}
+
+/**
+ * Form constructor for the condition configuration (the second step of the
+ * add/edit condition).
+ *
+ * @param object $field
+ *  The profiling field object.
+ */
+function progressive_profiling_condition_configuration_form($form, &$form_state, $field) {
+  $plugin_name = $form_state['storage']['condition_values']['condition_type'];
+  $plugin = ctools_get_access_plugin($plugin_name);
+  $form['settings'] = array('#tree' => TRUE);
+  $form_state['plugin'] = $plugin;
+  if ($function = ctools_plugin_get_function($plugin, 'settings form')) {
+    $conf = array();
+    $form = $function($form, $form_state, $conf);
+  }
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Save'),
+  );
+  $form_state['step'] = 'condition_configuration';
+  return $form;
+}
+
+function progressive_profiling_condition_form_validate($form, &$form_state) {
+  // @todo: add validation for the form.
+}
+
+function progressive_profiling_condition_form_submit($form, &$form_state) {
+  if ($form_state['step'] == 'condition') {
+    $form_state['storage']['condition_values'] = $form_state['values'];
+    $form_state['storage']['condition_configuration'] = TRUE;
+    $form_state['rebuild'] = TRUE;
+  }
+  else {
+    drupal_set_message('yay!');
+  }
 }

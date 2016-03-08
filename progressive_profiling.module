@@ -65,6 +65,14 @@ function progressive_profiling_menu() {
     'type' => MENU_CALLBACK | MENU_VISIBLE_IN_BREADCRUMB,
     'file' => 'progressive_profiling.admin.inc'
   );
+  $items[$base_admin_url.'/fields/conditions/%progressive_profiling_field/add'] = array(
+    'title' => 'Add field condition',
+    'access arguments' => array('administer users'),
+    'page callback' => 'progressive_profiling_fields_conditions_add',
+    'page arguments' => array(7),
+    'type' => MENU_CALLBACK | MENU_VISIBLE_IN_BREADCRUMB,
+    'file' => 'progressive_profiling.admin.inc'
+  );
   $items[$base_admin_url . '/settings'] = array(
     'title' => 'Settings',
     'access arguments' => array('administer users'),
