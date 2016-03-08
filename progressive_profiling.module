@@ -33,6 +33,38 @@ function progressive_profiling_menu() {
     'type' => MENU_CALLBACK | MENU_VISIBLE_IN_BREADCRUMB,
     'file' => 'progressive_profiling.admin.inc'
   );
+  $items[$base_admin_url.'/fields/disable/%progressive_profiling_field'] = array(
+    'title' => 'Disable field',
+    'access arguments' => array('administer users'),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('progressive_profiling_fields_disable_confirm', 7),
+    'type' => MENU_CALLBACK | MENU_VISIBLE_IN_BREADCRUMB,
+    'file' => 'progressive_profiling.admin.inc'
+  );
+  $items[$base_admin_url.'/fields/enable/%progressive_profiling_field'] = array(
+    'title' => 'Enable field',
+    'access arguments' => array('administer users'),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('progressive_profiling_fields_enable_confirm', 7),
+    'type' => MENU_CALLBACK | MENU_VISIBLE_IN_BREADCRUMB,
+    'file' => 'progressive_profiling.admin.inc'
+  );
+  $items[$base_admin_url.'/fields/delete/%progressive_profiling_field'] = array(
+    'title' => 'Delete field',
+    'access arguments' => array('administer users'),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('progressive_profiling_fields_delete_confirm', 7),
+    'type' => MENU_CALLBACK | MENU_VISIBLE_IN_BREADCRUMB,
+    'file' => 'progressive_profiling.admin.inc'
+  );
+  $items[$base_admin_url.'/fields/edit/%progressive_profiling_field'] = array(
+    'title' => 'Edit field',
+    'access arguments' => array('administer users'),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('progressive_profiling_fields_add_edit_field_form', 7),
+    'type' => MENU_CALLBACK | MENU_VISIBLE_IN_BREADCRUMB,
+    'file' => 'progressive_profiling.admin.inc'
+  );
   $items[$base_admin_url . '/settings'] = array(
     'title' => 'Settings',
     'access arguments' => array('administer users'),
@@ -41,6 +73,17 @@ function progressive_profiling_menu() {
     'file' => 'progressive_profiling.admin.inc'
   );
   return $items;
+}
+
+/**
+ * Implements hook_theme().
+ */
+function progressive_profiling_theme() {
+  return array(
+    'progressive_profiling_fields_table_form' => array(
+      'render element' => 'form',
+    ),
+  );
 }
 
 /**
@@ -58,7 +101,7 @@ function progressive_profiling_field_load_all() {
   if (!isset($fields)) {
     $query = db_select('progressive_profiling_fields', 'ppf');
     $query->fields('ppf');
-    $query->orderBy('ppf.status');
+    $query->orderBy('ppf.weight');
     $fields = $query->execute()->fetchAllAssoc('field_name');
     if (!empty($fields)) {
       // Unserialize the configuration column.
@@ -80,7 +123,7 @@ function progressive_profiling_field_load_all() {
  */
 function progressive_profiling_field_load($field_name) {
   $fields = progressive_profiling_field_load_all();
-  return (isset($fields[$field_name]) ? $fields[$field_name] : NULL);
+  return (isset($fields[$field_name]) ? $fields[$field_name] : FALSE);
 }
 
 /**
@@ -95,6 +138,16 @@ function progressive_profiling_field_save($field_configuration) {
     $primary_keys[] = 'field_name';
   }
   drupal_write_record('progressive_profiling_fields', $field_configuration, $primary_keys);
+}
+
+/**
+ * Deletes (removes) a field from the profiling list.
+ *
+ * @param string $field_name
+ *  The machine name of the field.
+ */
+function progressive_profiling_field_delete($field_name) {
+  db_delete('progressive_profiling_fields')->condition('field_name', $field_name)->execute();
 }
 
 /**
