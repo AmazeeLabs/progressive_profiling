@@ -1,0 +1,3 @@
+name = Progressive profiling
+description = Progressively collects data for the user account fields.
+core = 7.x

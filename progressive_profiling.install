@@ -1,0 +1,53 @@
+<?php
+
+/**
+ * Created by PhpStorm.
+ * User: vasi
+ * Date: 07/03/16
+ * Time: 16:09
+ */
+
+/**
+ * Implements hook_schema().
+ */
+function progressive_profiling_schema() {
+  $schema['progressive_profiling_fields'] = array(
+    'description' => 'Stores the fields configuration.',
+    'fields' => array(
+      'field_name' => array(
+        'type' => 'varchar',
+        'length' => 64,
+        'not null' => TRUE,
+        'default' => '',
+        'description' => 'The machine name of the account field.',
+      ),
+      'configuration' => array(
+        'type' => 'blob',
+        'not null' => FALSE,
+        'size' => 'big',
+        'serialize' => TRUE,
+        'description' => 'The configuration of the field.',
+      ),
+      'weight' => array(
+        'description' => 'The weight of the field in the list.',
+        'type' => 'int',
+        'not null' => FALSE,
+        'default' => 0,
+      ),
+      'status' => array(
+        'description' => 'Boolean indicating whether the field is enable for the profiling or not.',
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+    ),
+    'primary key' => array('field_name'),
+    'foreign keys' => array(
+      'field_name' => array(
+        'table' => 'field_config',
+        'columns' => array('field_name' => 'field_name'),
+      ),
+    ),
+  );
+  return $schema;
+}

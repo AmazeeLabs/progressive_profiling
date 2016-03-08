@@ -1,0 +1,127 @@
+<?php
+
+/**
+ * @file
+ *  Progressively collects data for the user account fields.
+ */
+
+/**
+ * Implements hook_menu().
+ */
+function progressive_profiling_menu() {
+  $base_admin_url = progressive_profiling_base_admin_url();
+  $items[$base_admin_url] = array(
+    'title' => 'Progressive profiling',
+    'access arguments' => array('administer users'),
+    'page callback' => 'progressive_profiling_fields',
+    'type' => MENU_LOCAL_TASK,
+    'file' => 'progressive_profiling.admin.inc',
+    'weight' => 20,
+  );
+  $items[$base_admin_url.'/fields'] = array(
+    'title' => 'Fields',
+    'access arguments' => array('administer users'),
+    'page callback' => 'progressive_profiling_fields',
+    'type' => MENU_DEFAULT_LOCAL_TASK,
+    'file' => 'progressive_profiling.admin.inc'
+  );
+  $items[$base_admin_url.'/fields/add/%'] = array(
+    'title' => 'Add field',
+    'access arguments' => array('administer users'),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('progressive_profiling_fields_add_edit_field_form', 7),
+    'type' => MENU_CALLBACK | MENU_VISIBLE_IN_BREADCRUMB,
+    'file' => 'progressive_profiling.admin.inc'
+  );
+  $items[$base_admin_url . '/settings'] = array(
+    'title' => 'Settings',
+    'access arguments' => array('administer users'),
+    'page callback' => 'progressive_profiling_settings',
+    'type' => MENU_LOCAL_TASK,
+    'file' => 'progressive_profiling.admin.inc'
+  );
+  return $items;
+}
+
+/**
+ * Helper function to return the base admin url of the module.
+ */
+function progressive_profiling_base_admin_url() {
+  return 'admin/config/people/accounts/progressive_profilling';
+}
+
+/**
+ * Returns an array with all the questions.
+ */
+function progressive_profiling_field_load_all() {
+  $fields = &drupal_static(__FUNCTION__, NULL);
+  if (!isset($fields)) {
+    $query = db_select('progressive_profiling_fields', 'ppf');
+    $query->fields('ppf');
+    $query->orderBy('ppf.status');
+    $fields = $query->execute()->fetchAllAssoc('field_name');
+    if (!empty($fields)) {
+      // Unserialize the configuration column.
+      foreach ($fields as $key => $row) {
+        if (isset($row->configuration)) {
+          $fields[$key]->configuration = unserialize($fields[$key]->configuration);
+        }
+      }
+    }
+  }
+  return $fields;
+}
+
+/**
+ * Loads a profiling field.
+ *
+ * @param $field_name
+ *  The machine name of the field.
+ */
+function progressive_profiling_field_load($field_name) {
+  $fields = progressive_profiling_field_load_all();
+  return (isset($fields[$field_name]) ? $fields[$field_name] : NULL);
+}
+
+/**
+ * Saves a profile field to the database.
+ *
+ * @param $field_configuration
+ *  An object that maps over the progressive_profiling_fields table.
+ */
+function progressive_profiling_field_save($field_configuration) {
+  $primary_keys = array();
+  if (empty($field_configuration->is_new)) {
+    $primary_keys[] = 'field_name';
+  }
+  drupal_write_record('progressive_profiling_fields', $field_configuration, $primary_keys);
+}
+
+/**
+ * Returns an array with all the fields which are available to be setup for
+ * being part of the progressive profiling (meaning that they are not already
+ * configured).
+ *
+ * This is used for example for the options list of the
+ * progressive_profiling_add_field_form().
+ */
+function progressive_profiling_get_available_fields() {
+  $field_info = field_info_instances('user', 'user');
+  $profiling_fields = progressive_profiling_field_load_all();
+  // Remove all the fields which are already profiling fields.
+  return array_diff_key($field_info, $profiling_fields);
+}
+
+/**
+ * Helper function to prepare an empty field object (which contains just the
+ * field name).
+ *
+ * @param $field_object
+ *  An object which usually contains just the field name (field_name).
+ */
+function progressive_profiling_field_object_prepare($field_object) {
+  $field_object->status = 0;
+  $field_object->weight = 0;
+  $field_object->configuration = array();
+  $field_object->is_new = TRUE;
+}
