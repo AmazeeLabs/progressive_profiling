@@ -19,6 +19,7 @@ function progressive_profiling_fields() {
  * Form constructor for the fields list table.
  */
 function progressive_profiling_fields_table_form($form, &$form_state) {
+  ctools_include('context');
   $fields = progressive_profiling_field_load_all();
   $field_info = field_info_instances('user', 'user');
   $header = array(
@@ -33,11 +34,30 @@ function progressive_profiling_fields_table_form($form, &$form_state) {
   $base_admin_url = progressive_profiling_base_admin_url();
   foreach ($fields as $field_name => $field) {
     $row = array();
+    // Field name column.
     // If the field was deleted from the user, we still want to show it, so that
     // the admin can delete if from the progressive profiling.
     // @todo: should we maybe delete the field automatically?
     $row['field_name'] = !empty($field_info[$field_name]) ? $field_info[$field_name]['label'] . ' (' . $field_name . ')' : t('--Missing field--') . ' (' . $field_name . ')';
-    $row['conf'] = l(t('add'), $base_admin_url . '/fields/conditions/' . $field_name . '/add', array('query' => drupal_get_destination()));
+
+    // Conditions column.
+    $conf = array();
+    if (!empty($field->configuration['conditions'])) {
+      foreach ($field->configuration['conditions'] as $plugin_name => $plugin_conf) {
+        $plugin = ctools_get_access_plugin($plugin_name);
+        $conf[] = ctools_access_summary($plugin, array(), $plugin_conf) . ' ' . l(t('edit condition'), $base_admin_url . '/fields/conditions/' . $field_name . '/edit/' . $plugin_name, array('query' => drupal_get_destination()));
+      }
+    }
+    else {
+      $conf[] = t('No conditions defined, the field will be asked to all the users.');
+    }
+    $conf[] = implode(' | ', array(
+      l(t('add condition'), $base_admin_url . '/fields/conditions/' . $field_name . '/add', array('query' => drupal_get_destination())),
+      l(t('edit conditions set'), $base_admin_url . '/fields/conditions/' . $field_name . '/edit_set', array('query' => drupal_get_destination()))
+    ));
+    $row['conf'] = implode('<br />', $conf);
+
+    // Status column.
     $actions = array();
     if (!empty($field->status)) {
       $row['status'] = '<span style="color: green">' . t('Enabled') . '</span>';
@@ -47,13 +67,18 @@ function progressive_profiling_fields_table_form($form, &$form_state) {
       $row['status'] = '<span style="color: red">' . t('Disabled') . '</span>';
       $actions['status'] = l(t('enable'), $base_admin_url . '/fields/enable/' . $field_name, array('query' => drupal_get_destination()));
     }
+
+    // Actions column.
     // @todo: should we make the actions configurable? They could anyway be
     // altered with a form alter hook.
-    $actions['edit'] = l(t('edit'), $base_admin_url . '/fields/edit/' . $field_name, array('query' => drupal_get_destination()));
+    // Currently, the edit operation is not needed. We have the code implemented
+    // (the menu item and the callback), so when we will need it we can just
+    // activate them again.
+    //$actions['edit'] = l(t('edit'), $base_admin_url . '/fields/edit/' . $field_name, array('query' => drupal_get_destination()));
     $actions['delete'] = l(t('delete'), $base_admin_url . '/fields/delete/' . $field_name, array('query' => drupal_get_destination()));
     $row['actions'] = implode(' | ', $actions);
+
     $rows[$field_name] = array('data' => $row, 'class' => array('draggable'));
-    //$rows[] = $row;
     $field_names[] = $field_name;
     $form['weight_' . $field_name] = array(
       '#type' => 'weight',
@@ -286,6 +311,20 @@ function progressive_profiling_fields_conditions_add($field) {
   return drupal_get_form('progressive_profiling_condition_form', $field);
 }
 
+function progressive_profiling_fields_conditions_edit($field, $plugin_name) {
+  ctools_include('context');
+  $form_state = array();
+  $form_state['build_info']['args'] = array($field);
+  // We directly want to show the condition configuration, so we prefill the
+  // values from the first step (from progressive_profiling_condition_form())
+  // into the storage of the form_state.
+  $form_state['storage']['condition_configuration'] = TRUE;
+  $form_state['storage']['condition_values']['condition_type'] = $plugin_name;
+  $form_state['storage']['condition_values']['field_name'] = $field->field_name;
+
+  return drupal_build_form('progressive_profiling_condition_form', $form_state);
+}
+
 /**
  * Form constructor for a field condition.
  *
@@ -319,6 +358,11 @@ function progressive_profiling_condition_form($form, &$form_state, $field) {
     '#type' => 'submit',
     '#value' => t('Next'),
   );
+  $form['cancel'] = array(
+    '#type' => 'link',
+    '#title' => t('Cancel'),
+    '#href' => progressive_profiling_base_admin_url(),
+  );
   $form_state['step'] = 'condition';
 
   return $form;
@@ -336,29 +380,100 @@ function progressive_profiling_condition_configuration_form($form, &$form_state,
   $plugin = ctools_get_access_plugin($plugin_name);
   $form['settings'] = array('#tree' => TRUE);
   $form_state['plugin'] = $plugin;
+  $conf = !empty($field->configuration['conditions'][$plugin_name]) ? $field->configuration['conditions'][$plugin_name] : array();
   if ($function = ctools_plugin_get_function($plugin, 'settings form')) {
-    $conf = array();
-    $form = $function($form, $form_state, $conf);
+    $settings = !empty($conf['settings']) ? $conf['settings'] : $plugin['default'];
+    $form = $function($form, $form_state, $settings);
   }
+  $form['not'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Reverse (NOT)'),
+    '#default_value' => !empty($conf['not']),
+  );
+
   $form['submit'] = array(
     '#type' => 'submit',
     '#value' => t('Save'),
+  );
+
+  // @todo: we should maybe at least add a js confirmation popup here.
+  $form['remove'] = array(
+    '#type' => 'submit',
+    '#value' => t('Remove'),
+    '#remove' => TRUE,
+  );
+  $form['cancel'] = array(
+    '#type' => 'link',
+    '#title' => t('Cancel'),
+    '#href' => progressive_profiling_base_admin_url(),
   );
   $form_state['step'] = 'condition_configuration';
   return $form;
 }
 
+/**
+ * Validation handler for the condition condiguration form.
+ *
+ * Basically, it just forwards the validation to the callback defined by the
+ * ctools access plugin.
+ */
 function progressive_profiling_condition_form_validate($form, &$form_state) {
-  // @todo: add validation for the form.
+  if (!empty($form_state['clicked_button']['#remove'])) {
+    return;
+  }
+
+  if ($form_state['step'] == 'condition_configuration') {
+    try {
+      // Do some checks before, to be sure we have valid data.
+      if (empty($form_state['storage']['condition_values'])) {
+        throw new Exception(t('There are no condition available for editing.'));
+      }
+      if (empty($form_state['storage']['condition_values']['field_name'])) {
+        throw new Exception(t('No available field name for which to configure the condition.'));
+      }
+      if (empty($form_state['storage']['condition_values']['condition_type'])) {
+        throw new Exception(t('No available condition type to be set.'));
+      }
+      $field = progressive_profiling_field_load($form_state['storage']['condition_values']['field_name']);
+      if (empty($field)) {
+        throw new Exception(t('There is no profiling field with the name: @field_name.', array('@field_name' => $form_state['storage']['condition_values']['field_name'])));
+      }
+      if (!empty($form_state['plugin']) && $function = ctools_plugin_get_function($form_state['plugin'], 'settings form validate')) {
+        $function($form, $form_state);
+      }
+    }
+    catch (Exception $e) {
+      form_set_error('', $e->getMessage());
+      watchdog_exception('progressive_profiling', $e);
+    }
+  }
 }
 
+/**
+ * Submit
+ */
 function progressive_profiling_condition_form_submit($form, &$form_state) {
   if ($form_state['step'] == 'condition') {
     $form_state['storage']['condition_values'] = $form_state['values'];
     $form_state['storage']['condition_configuration'] = TRUE;
     $form_state['rebuild'] = TRUE;
   }
-  else {
-    drupal_set_message('yay!');
+  elseif ($form_state['step'] == 'condition_configuration') {
+    if ($function = ctools_plugin_get_function($form_state['plugin'], 'settings form submit')) {
+      $function($form, $form_state);
+    }
+    // Just update the configuration for this condition (or remove it).
+    $field = progressive_profiling_field_load($form_state['storage']['condition_values']['field_name']);
+    if (!empty($form_state['clicked_button']['#remove'])) {
+      unset($field->configuration['conditions'][$form_state['storage']['condition_values']['condition_type']]);
+      if (empty($field->configuration['conditions'])) {
+        unset($field->configuration['conditions']);
+      }
+    }
+    else {
+      $field->configuration['conditions'][$form_state['storage']['condition_values']['condition_type']]['settings'] = $form_state['values']['settings'];
+      $field->configuration['conditions'][$form_state['storage']['condition_values']['condition_type']]['not'] = $form_state['values']['not'];
+    }
+    progressive_profiling_field_save($field);
   }
 }

@@ -14,8 +14,9 @@ function progressive_profiling_menu() {
     'title' => 'Progressive profiling',
     'access arguments' => array('administer users'),
     'page callback' => 'progressive_profiling_fields',
-    'type' => MENU_LOCAL_TASK,
+    'type' => MENU_NORMAL_ITEM,
     'file' => 'progressive_profiling.admin.inc',
+    'description' => 'Configure the fields which should be part of the progressive profiling.',
     'weight' => 20,
   );
   $items[$base_admin_url.'/fields'] = array(
@@ -29,7 +30,7 @@ function progressive_profiling_menu() {
     'title' => 'Add field',
     'access arguments' => array('administer users'),
     'page callback' => 'drupal_get_form',
-    'page arguments' => array('progressive_profiling_fields_add_edit_field_form', 7),
+    'page arguments' => array('progressive_profiling_fields_add_edit_field_form', 6),
     'type' => MENU_CALLBACK | MENU_VISIBLE_IN_BREADCRUMB,
     'file' => 'progressive_profiling.admin.inc'
   );
@@ -37,7 +38,7 @@ function progressive_profiling_menu() {
     'title' => 'Disable field',
     'access arguments' => array('administer users'),
     'page callback' => 'drupal_get_form',
-    'page arguments' => array('progressive_profiling_fields_disable_confirm', 7),
+    'page arguments' => array('progressive_profiling_fields_disable_confirm', 6),
     'type' => MENU_CALLBACK | MENU_VISIBLE_IN_BREADCRUMB,
     'file' => 'progressive_profiling.admin.inc'
   );
@@ -45,7 +46,7 @@ function progressive_profiling_menu() {
     'title' => 'Enable field',
     'access arguments' => array('administer users'),
     'page callback' => 'drupal_get_form',
-    'page arguments' => array('progressive_profiling_fields_enable_confirm', 7),
+    'page arguments' => array('progressive_profiling_fields_enable_confirm', 6),
     'type' => MENU_CALLBACK | MENU_VISIBLE_IN_BREADCRUMB,
     'file' => 'progressive_profiling.admin.inc'
   );
@@ -53,23 +54,33 @@ function progressive_profiling_menu() {
     'title' => 'Delete field',
     'access arguments' => array('administer users'),
     'page callback' => 'drupal_get_form',
-    'page arguments' => array('progressive_profiling_fields_delete_confirm', 7),
+    'page arguments' => array('progressive_profiling_fields_delete_confirm', 6),
     'type' => MENU_CALLBACK | MENU_VISIBLE_IN_BREADCRUMB,
     'file' => 'progressive_profiling.admin.inc'
   );
-  $items[$base_admin_url.'/fields/edit/%progressive_profiling_field'] = array(
+  // Not needed at the moment.
+  /*$items[$base_admin_url.'/fields/edit/%progressive_profiling_field'] = array(
     'title' => 'Edit field',
     'access arguments' => array('administer users'),
     'page callback' => 'drupal_get_form',
-    'page arguments' => array('progressive_profiling_fields_add_edit_field_form', 7),
+    'page arguments' => array('progressive_profiling_fields_add_edit_field_form', 6),
     'type' => MENU_CALLBACK | MENU_VISIBLE_IN_BREADCRUMB,
     'file' => 'progressive_profiling.admin.inc'
-  );
+  );*/
   $items[$base_admin_url.'/fields/conditions/%progressive_profiling_field/add'] = array(
     'title' => 'Add field condition',
     'access arguments' => array('administer users'),
     'page callback' => 'progressive_profiling_fields_conditions_add',
-    'page arguments' => array(7),
+    'page arguments' => array(6),
+    'type' => MENU_CALLBACK | MENU_VISIBLE_IN_BREADCRUMB,
+    'file' => 'progressive_profiling.admin.inc'
+  );
+  // This is the maximum depth of a menu in Drupal7: 9 parts (0 to 8)
+  $items[$base_admin_url.'/fields/conditions/%progressive_profiling_field/edit/%'] = array(
+    'title' => 'Edit field condition',
+    'access arguments' => array('administer users'),
+    'page callback' => 'progressive_profiling_fields_conditions_edit',
+    'page arguments' => array(6, 8),
     'type' => MENU_CALLBACK | MENU_VISIBLE_IN_BREADCRUMB,
     'file' => 'progressive_profiling.admin.inc'
   );
@@ -98,7 +109,7 @@ function progressive_profiling_theme() {
  * Helper function to return the base admin url of the module.
  */
 function progressive_profiling_base_admin_url() {
-  return 'admin/config/people/accounts/progressive_profilling';
+  return 'admin/config/people/progressive_profilling';
 }
 
 /**
@@ -137,15 +148,15 @@ function progressive_profiling_field_load($field_name) {
 /**
  * Saves a profile field to the database.
  *
- * @param $field_configuration
+ * @param $field
  *  An object that maps over the progressive_profiling_fields table.
  */
-function progressive_profiling_field_save($field_configuration) {
+function progressive_profiling_field_save($field) {
   $primary_keys = array();
-  if (empty($field_configuration->is_new)) {
+  if (empty($field->is_new)) {
     $primary_keys[] = 'field_name';
   }
-  drupal_write_record('progressive_profiling_fields', $field_configuration, $primary_keys);
+  drupal_write_record('progressive_profiling_fields', $field, $primary_keys);
 }
 
 /**
