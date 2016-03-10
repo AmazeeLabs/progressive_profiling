@@ -32,74 +32,81 @@ function progressive_profiling_fields_table_form($form, &$form_state) {
   $field_names = array();
   $weight_delta = round(count($fields) / 2) + 10;
   $base_admin_url = progressive_profiling_base_admin_url();
-  foreach ($fields as $field_name => $field) {
-    $row = array();
-    // Field name column.
-    // If the field was deleted from the user, we still want to show it, so that
-    // the admin can delete if from the progressive profiling.
-    // @todo: should we maybe delete the field automatically?
-    $row['field_name'] = !empty($field_info[$field_name]) ? $field_info[$field_name]['label'] . ' (' . $field_name . ')' : t('--Missing field--') . ' (' . $field_name . ')';
+  if (!empty($fields)) {
+    foreach ($fields as $field_name => $field) {
+      $row = array();
+      // Field name column.
+      // If the field was deleted from the user, we still want to show it, so that
+      // the admin can delete if from the progressive profiling.
+      // @todo: should we maybe delete the field automatically?
+      $row['field_name'] = !empty($field_info[$field_name]) ? $field_info[$field_name]['label'] . ' (' . $field_name . ')' : t('--Missing field--') . ' (' . $field_name . ')';
 
-    // Conditions column.
-    $conf = array();
-    if (!empty($field->configuration['conditions'])) {
-      foreach ($field->configuration['conditions'] as $plugin_name => $plugin_conf) {
-        $plugin = ctools_get_access_plugin($plugin_name);
-        $conf[] = ctools_access_summary($plugin, array(), $plugin_conf) . ' ' . l(t('edit condition'), $base_admin_url . '/fields/conditions/' . $field_name . '/edit/' . $plugin_name, array('query' => drupal_get_destination()));
+      // Conditions column.
+      $conf = array();
+      if (!empty($field->configuration['conditions'])) {
+        foreach ($field->configuration['conditions'] as $plugin_name => $plugin_conf) {
+          $plugin = ctools_get_access_plugin($plugin_name);
+          $conf[] = ctools_access_summary($plugin, array(), $plugin_conf) . ' ' . l(t('edit condition'), $base_admin_url . '/fields/conditions/' . $field_name . '/edit/' . $plugin_name, array('query' => drupal_get_destination()));
+        }
+        $conditions_logic = !empty($field->configuration['conditions_logic']) ? $field->configuration['conditions_logic'] : 'and';
+        $conf[] = t('<strong>Logic</strong>: @logic', array('@logic' => ($conditions_logic === 'or') ? t('Only one criteria must pass.') : t('All criteria must pass.'))) . ' ' . l(t('edit logic'), $base_admin_url . '/fields/conditions/' . $field_name . '/edit_set', array('query' => drupal_get_destination()));
       }
-      $conditions_logic = !empty($field->configuration['conditions_logic']) ? $field->configuration['conditions_logic'] : 'and';
-      $conf[] = t('<strong>Logic</strong>: @logic', array('@logic' => ($conditions_logic === 'or') ? t('Only one criteria must pass.') : t('All criteria must pass.'))) . ' ' . l(t('edit logic'), $base_admin_url . '/fields/conditions/' . $field_name . '/edit_set', array('query' => drupal_get_destination()));
-    }
-    else {
-      $conf[] = t('No conditions defined, the field will be asked to all the users.');
-    }
-    // In case we will have some more links, we can just add them to this array.
-    // (This is expected maybe for the future.)
-    $conf[] = implode(' | ', array(
-      l(t('add condition'), $base_admin_url . '/fields/conditions/' . $field_name . '/add', array('query' => drupal_get_destination())),
-    ));
-    $row['conf'] = implode('<br />', $conf);
+      else {
+        $conf[] = t('No conditions defined, the field will be asked to all the users.');
+      }
+      // In case we will have some more links, we can just add them to this array.
+      // (This is expected maybe for the future.)
+      $conf[] = implode(' | ', array(
+        l(t('add condition'), $base_admin_url . '/fields/conditions/' . $field_name . '/add', array('query' => drupal_get_destination())),
+      ));
+      $row['conf'] = implode('<br />', $conf);
 
-    // Status column.
-    $actions = array();
-    if (!empty($field->status)) {
-      $row['status'] = '<span style="color: green">' . t('Enabled') . '</span>';
-      $actions['status'] = l(t('disable'), $base_admin_url . '/fields/disable/' . $field_name, array('query' => drupal_get_destination()));
-    }
-    else {
-      $row['status'] = '<span style="color: red">' . t('Disabled') . '</span>';
-      $actions['status'] = l(t('enable'), $base_admin_url . '/fields/enable/' . $field_name, array('query' => drupal_get_destination()));
-    }
+      // Status column.
+      $actions = array();
+      if (!empty($field->status)) {
+        $row['status'] = '<span style="color: green">' . t('Enabled') . '</span>';
+        $actions['status'] = l(t('disable'), $base_admin_url . '/fields/disable/' . $field_name, array('query' => drupal_get_destination()));
+      }
+      else {
+        $row['status'] = '<span style="color: red">' . t('Disabled') . '</span>';
+        $actions['status'] = l(t('enable'), $base_admin_url . '/fields/enable/' . $field_name, array('query' => drupal_get_destination()));
+      }
 
-    // Actions column.
-    // Currently, the edit operation is not needed. We have the code implemented
-    // (the menu item and the callback), so when we will need it we can just
-    // activate them again.
-    //$actions['edit'] = l(t('edit'), $base_admin_url . '/fields/edit/' . $field_name, array('query' => drupal_get_destination()));
-    $actions['delete'] = l(t('delete'), $base_admin_url . '/fields/delete/' . $field_name, array('query' => drupal_get_destination()));
-    $row['actions'] = implode(' | ', $actions);
+      // Actions column.
+      // Currently, the edit operation is not needed. We have the code implemented
+      // (the menu item and the callback), so when we will need it we can just
+      // activate them again.
+      //$actions['edit'] = l(t('edit'), $base_admin_url . '/fields/edit/' . $field_name, array('query' => drupal_get_destination()));
+      $actions['delete'] = l(t('delete'), $base_admin_url . '/fields/delete/' . $field_name, array('query' => drupal_get_destination()));
+      $row['actions'] = implode(' | ', $actions);
 
-    $rows[$field_name] = array('data' => $row, 'class' => array('draggable'));
-    $field_names[] = $field_name;
-    $form['weight_' . $field_name] = array(
-      '#type' => 'weight',
-      '#default_value' => $field->weight,
-      '#delta' => $weight_delta,
-      '#attributes' => array('class' => array('component-field-weight')),
-      '#title' => t('Weight'),
-      '#title_display' => 'invisible',
+      $rows[$field_name] = array('data' => $row, 'class' => array('draggable'));
+      $field_names[] = $field_name;
+      $form['weight_' . $field_name] = array(
+        '#type' => 'weight',
+        '#default_value' => $field->weight,
+        '#delta' => $weight_delta,
+        '#attributes' => array('class' => array('component-field-weight')),
+        '#title' => t('Weight'),
+        '#title_display' => 'invisible',
+      );
+    }
+    $form['field_names'] = array(
+      '#type' => 'value',
+      '#value' => $field_names,
+    );
+    $form['#header'] = $header;
+    $form['#rows'] = $rows;
+    $form['submit'] = array(
+      '#type' => 'submit',
+      '#value' => t('Save'),
     );
   }
-  $form['field_names'] = array(
-    '#type' => 'value',
-    '#value' => $field_names,
-  );
-  $form['#header'] = $header;
-  $form['#rows'] = $rows;
-  $form['submit'] = array(
-    '#type' => 'submit',
-    '#value' => t('Save'),
-  );
+  else {
+    $form['no_fields'] = array(
+      '#markup' => '<h3>' . t('There are no fields configured yet, please add them using the form below.') . '</h3>',
+    );
+  }
   return $form;
 }
 
@@ -121,12 +128,19 @@ function progressive_profiling_fields_table_form_submit($form, &$form_state) {
 function theme_progressive_profiling_fields_table_form(&$variables) {
   $form = $variables['form'];
   $table_id = 'progressive-profiling-table';
-  foreach ($form['#rows'] as $field_name => &$value) {
-    $form['#rows'][$field_name]['data']['weight'] = drupal_render($form['weight_' . $field_name]);
+  $output = '';
+  if (!empty($form['#rows'])) {
+    foreach ($form['#rows'] as $field_name => &$value) {
+      $form['#rows'][$field_name]['data']['weight'] = drupal_render($form['weight_' . $field_name]);
+    }
+    $output = theme('table', array(
+      'header' => $form['#header'],
+      'rows' => $form['#rows'],
+      'attributes' => array('id' => $table_id)
+    ));
+    drupal_add_tabledrag($table_id, 'order', 'sibling', 'component-field-weight');
   }
-  $output = theme('table', array('header' => $form['#header'], 'rows' => $form['#rows'], 'attributes' => array('id' => $table_id)));
   $output .= drupal_render_children($form);
-  drupal_add_tabledrag($table_id, 'order', 'sibling', 'component-field-weight');
   return $output;
 }
 
