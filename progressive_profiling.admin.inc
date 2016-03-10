@@ -47,13 +47,16 @@ function progressive_profiling_fields_table_form($form, &$form_state) {
         $plugin = ctools_get_access_plugin($plugin_name);
         $conf[] = ctools_access_summary($plugin, array(), $plugin_conf) . ' ' . l(t('edit condition'), $base_admin_url . '/fields/conditions/' . $field_name . '/edit/' . $plugin_name, array('query' => drupal_get_destination()));
       }
+      $conditions_logic = !empty($field->configuration['conditions_logic']) ? $field->configuration['conditions_logic'] : 'and';
+      $conf[] = t('<strong>Logic</strong>: @logic', array('@logic' => ($conditions_logic === 'or') ? t('Only one criteria must pass.') : t('All criteria must pass.'))) . ' ' . l(t('edit logic'), $base_admin_url . '/fields/conditions/' . $field_name . '/edit_set', array('query' => drupal_get_destination()));
     }
     else {
       $conf[] = t('No conditions defined, the field will be asked to all the users.');
     }
+    // In case we will have some more links, we can just add them to this array.
+    // (This is expected maybe for the future.)
     $conf[] = implode(' | ', array(
       l(t('add condition'), $base_admin_url . '/fields/conditions/' . $field_name . '/add', array('query' => drupal_get_destination())),
-      l(t('edit conditions set'), $base_admin_url . '/fields/conditions/' . $field_name . '/edit_set', array('query' => drupal_get_destination()))
     ));
     $row['conf'] = implode('<br />', $conf);
 
@@ -69,8 +72,6 @@ function progressive_profiling_fields_table_form($form, &$form_state) {
     }
 
     // Actions column.
-    // @todo: should we make the actions configurable? They could anyway be
-    // altered with a form alter hook.
     // Currently, the edit operation is not needed. We have the code implemented
     // (the menu item and the callback), so when we will need it we can just
     // activate them again.
@@ -151,7 +152,7 @@ function progressive_profiling_add_field_form() {
     '#type' => 'select',
     '#options' => $options,
     '#title' => t('Field name'),
-    '#description' => t('Please select the field which you want to add to the progressive profiling pool.'),
+    '#description' => t('Please select the field which you want to add to the progressive profiling fields pool.'),
   );
   $form['add']['actions'] = array(
     '#type' => 'actions',
@@ -182,21 +183,24 @@ function progressive_profiling_add_field_form_submit(&$form, &$form_state) {
  *  means that we are actually on the edit form.
  */
 function progressive_profiling_fields_add_edit_field_form($form, &$form_state, $field) {
-  // @todo: check that the field name is valid.
   $field_name = is_string($field) ? $field : $field->field_name;
   $field_info = field_info_instance('user', $field_name, 'user');
+  if (empty($field_info)) {
+    drupal_set_message(t('The field %field_name is not a valid field.', array('%field_name' => $field_name)), 'error');
+    drupal_goto();
+  }
   $form['field_name'] = array(
     '#type' => 'value',
     '#value' => $field_name,
   );
-  $lead = is_string($field) ? t('Add field %field_name', array('%field_name' => $field_info['label'])) : t('Edit field %field_name', array('%field_name' => $field_info['label']));
+  $lead = is_string($field) ? t('Add field %field_name?', array('%field_name' => $field_info['label'])) : t('Edit field %field_name', array('%field_name' => $field_info['label']));
   $form['lead'] = array(
     '#markup' => '<h3>' . $lead . '</h3>',
   );
   $form['actions'] = array('#type' => 'actions');
   $form['actions']['submit'] = array(
     '#type' => 'submit',
-    '#value' => t('Submit'),
+    '#value' => t('Save'),
   );
   $form['actions']['cancel'] = array(
     '#type' => 'link',
@@ -216,7 +220,6 @@ function progressive_profiling_fields_add_edit_field_form_submit(&$form, &$form_
     $field_configuration->field_name = $form_state['values']['field_name'];
     progressive_profiling_field_object_prepare($field_configuration);
   }
-  // @todo: Add the submitted field configuration.
   progressive_profiling_field_save($field_configuration);
 }
 
@@ -291,13 +294,6 @@ function progressive_profiling_fields_delete_confirm($form, &$form_state, $field
 function progressive_profiling_fields_delete_confirm_submit($form, &$form_state) {
   progressive_profiling_field_delete($form_state['values']['field_name']);
   drupal_set_message(t('The field has been removed.'));
-}
-
-/**
- * Menu callback for the general progressive profilling settings page.
- */
-function progressive_profiling_settings() {
-  return array('#markup' => 'No special settings yet.');
 }
 
 /**
@@ -380,7 +376,17 @@ function progressive_profiling_condition_configuration_form($form, &$form_state,
   $plugin = ctools_get_access_plugin($plugin_name);
   $form['settings'] = array('#tree' => TRUE);
   $form_state['plugin'] = $plugin;
+
   $conf = !empty($field->configuration['conditions'][$plugin_name]) ? $field->configuration['conditions'][$plugin_name] : array();
+
+  $contexts['logged-in-user'] = ctools_access_get_loggedin_context();
+  if (isset($plugin['required context'])) {
+    if (empty($conf['context'])) {
+      $conf['context'] = 'logged-in-user';
+    }
+    $form['context'] = ctools_context_selector($contexts, $plugin['required context'], $conf['context']);
+  }
+
   if ($function = ctools_plugin_get_function($plugin, 'settings form')) {
     $settings = !empty($conf['settings']) ? $conf['settings'] : $plugin['default'];
     $form = $function($form, $form_state, $settings);
@@ -412,7 +418,7 @@ function progressive_profiling_condition_configuration_form($form, &$form_state,
 }
 
 /**
- * Validation handler for the condition condiguration form.
+ * Validation handler for the condition configuration form.
  *
  * Basically, it just forwards the validation to the callback defined by the
  * ctools access plugin.
@@ -450,7 +456,7 @@ function progressive_profiling_condition_form_validate($form, &$form_state) {
 }
 
 /**
- * Submit
+ * Submit handler for the condition configuration form.
  */
 function progressive_profiling_condition_form_submit($form, &$form_state) {
   if ($form_state['step'] == 'condition') {
@@ -473,7 +479,59 @@ function progressive_profiling_condition_form_submit($form, &$form_state) {
     else {
       $field->configuration['conditions'][$form_state['storage']['condition_values']['condition_type']]['settings'] = $form_state['values']['settings'];
       $field->configuration['conditions'][$form_state['storage']['condition_values']['condition_type']]['not'] = $form_state['values']['not'];
+      if (!empty($form_state['values']['context'])) {
+        $field->configuration['conditions'][$form_state['storage']['condition_values']['condition_type']]['context'] = $form_state['values']['context'];
+      }
     }
     progressive_profiling_field_save($field);
   }
+}
+
+/**
+ * Form constructor for the conditions settings form.
+ */
+function progressive_profiling_fields_conditions_settings_form($form, &$form_state, $field) {
+  // Setting for the logic of the conditions (if all should pass, or only one is
+  // needed to pass).
+  $form['logic'] = array(
+    '#type' => 'radios',
+    '#options' => array(
+      'and' => t('All criteria must pass.'),
+      'or' => t('Only one criteria must pass.'),
+    ),
+    '#default_value' => !empty($field->configuration['conditions_logic']) ? $field->configuration['conditions_logic'] : 'and',
+  );
+  $form['field_name'] = array(
+    '#type' => 'value',
+    '#value' => $field->field_name,
+  );
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Save'),
+  );
+  $form['cancel'] = array(
+    '#type' => 'link',
+    '#title' => t('Cancel'),
+    '#href' => progressive_profiling_base_admin_url(),
+  );
+  return $form;
+}
+
+/**
+ * Submit handler for the conditions settings form.
+ */
+function progressive_profiling_fields_conditions_settings_form_submit(&$form, &$form_state) {
+  $field = progressive_profiling_field_load($form_state['values']['field_name']);
+  $field->configuration['conditions_logic'] = $form_state['values']['logic'];
+  progressive_profiling_field_save($field);
+  drupal_set_message(t('The conditions settings have been saved.'));
+}
+
+/**
+ * Menu callback for the general progressive profilling settings page.
+ */
+function progressive_profiling_settings() {
+  // We intentionally left this string untranslated because it is supposed to be
+  // used only in development, as a placeholder.
+  return array('#markup' => 'A placeholder for possibile additional settings. No special settings at the moment.');
 }

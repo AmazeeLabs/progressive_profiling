@@ -84,6 +84,14 @@ function progressive_profiling_menu() {
     'type' => MENU_CALLBACK | MENU_VISIBLE_IN_BREADCRUMB,
     'file' => 'progressive_profiling.admin.inc'
   );
+  $items[$base_admin_url.'/fields/conditions/%progressive_profiling_field/edit_set'] = array(
+    'title' => 'Conditions settings',
+    'access arguments' => array('administer users'),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('progressive_profiling_fields_conditions_settings_form', 6),
+    'type' => MENU_CALLBACK | MENU_VISIBLE_IN_BREADCRUMB,
+    'file' => 'progressive_profiling.admin.inc'
+  );
   $items[$base_admin_url . '/settings'] = array(
     'title' => 'Settings',
     'access arguments' => array('administer users'),
