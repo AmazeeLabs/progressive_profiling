@@ -6,6 +6,18 @@
  */
 
 /**
+ * Implements hook_permission().
+ */
+function progressive_profiling_permission() {
+  return array(
+    'skip progressive profiling' => array(
+      'title' => t('Skip progressive profiling'),
+      'description' => t('The users with this permisssions will not be asked to fill in any fields which are part of the progressive profiling.')
+    ),
+  );
+}
+
+/**
  * Implements hook_menu().
  */
 function progressive_profiling_menu() {
