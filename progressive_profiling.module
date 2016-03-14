@@ -107,8 +107,32 @@ function progressive_profiling_menu() {
   $items[$base_admin_url . '/settings'] = array(
     'title' => 'Settings',
     'access arguments' => array('administer users'),
-    'page callback' => 'progressive_profiling_settings',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('progressive_profiling_settings_form'),
     'type' => MENU_LOCAL_TASK,
+    'file' => 'progressive_profiling.admin.inc'
+  );
+  $items[$base_admin_url . '/settings/condition/add'] = array(
+    'title' => 'Add condition',
+    'access arguments' => array('administer users'),
+    'page callback' => 'progressive_profiling_settings_conditions_add',
+    'type' => MENU_CALLBACK | MENU_VISIBLE_IN_BREADCRUMB,
+    'file' => 'progressive_profiling.admin.inc'
+  );
+  $items[$base_admin_url . '/settings/condition/edit/%'] = array(
+    'title' => 'Edit condition',
+    'access arguments' => array('administer users'),
+    'page callback' => 'progressive_profiling_settings_conditions_edit',
+    'page arguments' => array(7),
+    'type' => MENU_CALLBACK | MENU_VISIBLE_IN_BREADCRUMB,
+    'file' => 'progressive_profiling.admin.inc'
+  );
+  $items[$base_admin_url . '/settings/condition/edit_logic'] = array(
+    'title' => 'Edit conditions logic',
+    'access arguments' => array('administer users'),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('progressive_profiling_settings_conditions_edit_logic_form'),
+    'type' => MENU_CALLBACK | MENU_VISIBLE_IN_BREADCRUMB,
     'file' => 'progressive_profiling.admin.inc'
   );
   return $items;
