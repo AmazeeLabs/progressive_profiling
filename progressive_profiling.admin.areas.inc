@@ -121,6 +121,17 @@ function progressive_profiling_areas_add_edit_form($form, &$form_state, $area = 
     '#title' => t('Conditions logic'),
     '#default_value' => !empty($area->configuration['conditions_logic']) ? $area->configuration['conditions_logic'] : 'and',
   );
+  $area_elements['submit_button_text'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Submit button text'),
+    '#default_value' => !empty($area->configuration['submit_button_text']) ? $area->configuration['submit_button_text'] : '',
+  );
+  $area_elements['questions_nr'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Amount of questions to ask'),
+    '#description' => t('Input the amount of questions to ask for this area.'),
+    '#default_value' => !empty($area->configuration['questions_nr']) ? $area->configuration['questions_nr'] : 2,
+  );
   $area_elements['actions']['submit'] = array(
     '#type' => 'submit',
     '#value' => !empty($area) ? t('Update') :t('Add'),
@@ -150,6 +161,8 @@ function progressive_profiling_areas_add_edit_form_submit(&$form, &$form_state) 
   }
   $area->area_title = $form_state['values']['area_title'];
   $area->configuration['conditions_logic'] = $form_state['values']['logic'];
+  $area->configuration['submit_button_text'] = $form_state['values']['submit_button_text'];
+  $area->configuration['questions_nr'] = $form_state['values']['questions_nr'];
 
   progressive_profiling_area_save($area);
   drupal_set_message($message);
@@ -417,6 +430,7 @@ function progressive_profiling_areas_condition_form_submit($form, &$form_state) 
     }
     else {
       $area->configuration['conditions'][$form_state['storage']['condition_values']['condition_type']]['settings'] = isset($form_state['values']['settings']) ? $form_state['values']['settings'] : NULL;
+      $area->configuration['conditions'][$form_state['storage']['condition_values']['condition_type']]['name'] = $form_state['storage']['condition_values']['condition_type'];
       $area->configuration['conditions'][$form_state['storage']['condition_values']['condition_type']]['not'] = $form_state['values']['not'];
       if (!empty($form_state['values']['context'])) {
         $area->configuration['conditions'][$form_state['storage']['condition_values']['condition_type']]['context'] = $form_state['values']['context'];

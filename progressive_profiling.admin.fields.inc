@@ -498,6 +498,7 @@ function progressive_profiling_condition_form_submit($form, &$form_state) {
     }
     else {
       $field->configuration['conditions'][$form_state['storage']['condition_values']['condition_type']]['settings'] = $form_state['values']['settings'];
+      $field->configuration['conditions'][$form_state['storage']['condition_values']['condition_type']]['name'] = $form_state['storage']['condition_values']['condition_type'];
       $field->configuration['conditions'][$form_state['storage']['condition_values']['condition_type']]['not'] = $form_state['values']['not'];
       if (!empty($form_state['values']['context'])) {
         $field->configuration['conditions'][$form_state['storage']['condition_values']['condition_type']]['context'] = $form_state['values']['context'];

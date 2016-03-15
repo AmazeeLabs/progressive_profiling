@@ -379,10 +379,172 @@ function progressive_profiling_area_object_prepare($area) {
  * Returns an array with all the contexts currently available for conditions.
  */
 function progressive_profiling_available_contexts() {
+  ctools_include('context');
   $contexts['logged-in-user'] = ctools_access_get_loggedin_context();
   $contexts['node'] = ctools_context_create_empty('entity:node');
   $contexts['node']->identifier = t('Node being viewed');
   $contexts['term'] = ctools_context_create_empty('entity:taxonomy_term');
   $contexts['term']->identifier = t('Term being viewed');
   return $contexts;
+}
+
+/**
+ * Returns the real contexts for a path.
+ *
+ * @param object $account
+ *  An user account object. Defaults to the current logged in user.
+ *
+ * @param string $path
+ *  The path to check for. Defaults to $_GET['q']
+ */
+function progressive_profiling_get_contexts($account = NULL, $path = '') {
+  ctools_include('context');
+  if (empty($account)) {
+    global $user;
+    $account = user_load($user->uid);
+  }
+  if (empty($path)) {
+    $path = $_GET['q'];
+  }
+  $contexts['logged-in-user'] = ctools_context_create('entity:user', $account);
+  $arg = arg(NULL, $path);
+  if ($arg[0] == 'node' && is_numeric($arg[1]) && (empty($arg[2]) || $arg[2] != 'edit')) {
+    $contexts['node'] = ctools_context_create('entity:node', node_load($arg[1]));
+  }
+  elseif ($arg[0] == 'taxonomy' && $arg[1] == 'term' && is_numeric($arg[2]) && (empty($arg[3]) || $arg[3] != 'edit')) {
+    $contexts['term'] = ctools_context_create('entity:taxonomy_term', taxonomy_term_load($arg[2]));
+  }
+  return $contexts;
+}
+
+/**
+ * Implements hook_page_build().
+ */
+function progressive_profiling_page_build(&$page) {
+  $profile_fields = progressive_profiling_check_for_fields();
+  if (!empty($profile_fields)) {
+    // @todo: code to do when there are fields to be filled in by the user.
+  }
+}
+
+/**
+ * Checks which fields should be asked to the user, for a specific URL.
+ *
+ * @param object $account
+ *  An user account object. Defaults to the current logged in user.
+ *
+ * @param string $path
+ *  The path to check. Defaults to $_GET['q']
+ */
+function progressive_profiling_check_for_fields($account = NULL, $path = NULL) {
+  // First, initialize the parameters with the default values if they are empty.
+  if (empty($account)) {
+    global $user;
+    $account = user_load($user->uid);
+  }
+  if (empty($path)) {
+    $path = $_GET['q'];
+  }
+  $profile_fields = array();
+  // When deciding if we show profiling fields, we do the following:
+  // 1. Check first the general settings.
+  // 2. Check if there is any area that matches the request.
+  // 3. Check which fields which are part of the profiling are not yet filled
+  // in by the user.
+  // Before being able to check the access, we need to initialize the contexts.
+  $contexts = progressive_profiling_get_contexts($account, $path);
+  $access = progressive_profiling_check_general_access($contexts);
+  // Only continue if the conditions for the general settings are met.
+  if ($access) {
+    $area = progressive_profiling_get_matched_area($contexts);
+    // If we found an area, we can search for the next fields which we should
+    // ask the user.
+    if (!empty($area)) {
+      $profile_fields = progressive_profile_get_next_fields($account, $area, $contexts);
+    }
+  }
+  return $profile_fields;
+}
+
+/**
+ * Checks the conditions from the general profiling settings.
+ *
+ * @param $contexts
+ *  An array of contexts for the conditions.
+ */
+function progressive_profiling_check_general_access($contexts) {
+  ctools_include('context');
+  $settings['plugins'] = variable_get('progressive_profiling_conditions', array());
+  $settings['logic'] = variable_get('progressive_profiling_conditions_logic', 'and');
+  return ctools_access($settings, $contexts);
+}
+
+/**
+ * Searches for the first area that matches the conditions for a set of
+ * contexts.
+ *
+ * @param $contexts
+ *  An array of contexts for the conditions.
+ */
+function progressive_profiling_get_matched_area($contexts) {
+  ctools_include('context');
+  $all_areas = progressive_profiling_areas_load_all();
+  foreach ($all_areas as $area) {
+    // Ignore the disabled areas.
+    if (!$area->status) {
+      continue;
+    }
+    $settings['plugins'] = !empty($area->configuration['conditions']) ? $area->configuration['conditions'] : array();
+    $settings['logic'] = !empty($area->configuration['conditions_logic']) ? $area->configuration['conditions_logic'] : 'and';
+    if (ctools_access($settings, $contexts)) {
+      return $area;
+    }
+  }
+  return FALSE;
+}
+
+/**
+ * Given an account and an area of the site, this function will return the next
+ * profile fields which the user should be asked.
+ *
+ * @param object $account
+ *  An user account object for which we search for the fields.
+ *
+ * @param object $area
+ *  A profiling area object.
+ *
+ * @param $contexts
+ *  An array of contexts for the conditions.
+ */
+function progressive_profile_get_next_fields($account, $area, $contexts) {
+  ctools_include('context');
+  $fields = progressive_profiling_field_load_all();
+  $instances = field_info_instances('user', 'user');
+  $profile_fields = array();
+  $fields_count = 0;
+  $max_fields = !empty($area->configuration['questions_nr']) ? $area->configuration['questions_nr'] : 2;
+  foreach ($fields as $field_name => $field) {
+    if (!$field->status) {
+      continue;
+    }
+    // Skip eventually deleted fields.
+    if (empty($instances[$field_name])) {
+      continue;
+    }
+    $field_language = field_language('user', $account, $field_name);
+    if (empty($account->{$field_name}[$field_language])) {
+      // Check if the conditions of the field match.
+      $settings['plugins'] = !empty($field->configuration['conditions']) ? $field->configuration['conditions'] : array();
+      $settings['logic'] = !empty($field->configuration['conditions_logic']) ? $field->configuration['conditions_logic'] : 'and';
+      if (ctools_access($settings, $contexts)) {
+        $profile_fields[] = $field_name;
+        $fields_count++;
+        if ($fields_count >= $max_fields) {
+          // We reached the maximum number of fields, so just return here.
+          break;
+        }
+      }
+    }
+  }
+  return $profile_fields;
 }
