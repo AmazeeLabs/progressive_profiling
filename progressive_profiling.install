@@ -49,5 +49,43 @@ function progressive_profiling_schema() {
       ),
     ),
   );
+
+  $schema['progressive_profiling_areas'] = array(
+    'description' => 'Defines the areas where the profile questions will be asked.',
+    'fields' => array(
+      'area_id' => array(
+        'description' => 'The primary identifier for an area.',
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'area_title' => array(
+        'type' => 'varchar',
+        'length' => 256,
+        'not null' => TRUE,
+        'default' => '',
+        'description' => 'The area title.',
+      ),
+      'configuration' => array(
+        'type' => 'blob',
+        'not null' => FALSE,
+        'size' => 'big',
+        'serialize' => TRUE,
+        'description' => 'The configuration of the area consisting of conditions and other different settings.',
+      ),
+      'status' => array(
+        'description' => 'Boolean indicating whether the area is enabled for the profiling or not.',
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+    ),
+    'primary key' => array('area_id'),
+  );
   return $schema;
+}
+
+function progressive_profiling_update_7003() {
+  $schema = progressive_profiling_schema();
+  db_create_table('progressive_profiling_areas', $schema['progressive_profiling_areas']);
 }

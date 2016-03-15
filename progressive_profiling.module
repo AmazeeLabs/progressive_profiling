@@ -27,16 +27,19 @@ function progressive_profiling_menu() {
     'access arguments' => array('administer users'),
     'page callback' => 'progressive_profiling_fields',
     'type' => MENU_NORMAL_ITEM,
-    'file' => 'progressive_profiling.admin.inc',
+    'file' => 'progressive_profiling.admin.fields.inc',
     'description' => 'Configure the fields which should be part of the progressive profiling.',
     'weight' => 20,
   );
+
+  // Fields configuration.
   $items[$base_admin_url.'/fields'] = array(
     'title' => 'Fields',
     'access arguments' => array('administer users'),
     'page callback' => 'progressive_profiling_fields',
     'type' => MENU_DEFAULT_LOCAL_TASK,
-    'file' => 'progressive_profiling.admin.inc'
+    'file' => 'progressive_profiling.admin.fields.inc',
+    'weight' => -5,
   );
   $items[$base_admin_url.'/fields/add/%'] = array(
     'title' => 'Add field',
@@ -44,7 +47,7 @@ function progressive_profiling_menu() {
     'page callback' => 'drupal_get_form',
     'page arguments' => array('progressive_profiling_fields_add_edit_field_form', 6),
     'type' => MENU_CALLBACK | MENU_VISIBLE_IN_BREADCRUMB,
-    'file' => 'progressive_profiling.admin.inc'
+    'file' => 'progressive_profiling.admin.fields.inc'
   );
   $items[$base_admin_url.'/fields/disable/%progressive_profiling_field'] = array(
     'title' => 'Disable field',
@@ -52,7 +55,7 @@ function progressive_profiling_menu() {
     'page callback' => 'drupal_get_form',
     'page arguments' => array('progressive_profiling_fields_disable_confirm', 6),
     'type' => MENU_CALLBACK | MENU_VISIBLE_IN_BREADCRUMB,
-    'file' => 'progressive_profiling.admin.inc'
+    'file' => 'progressive_profiling.admin.fields.inc'
   );
   $items[$base_admin_url.'/fields/enable/%progressive_profiling_field'] = array(
     'title' => 'Enable field',
@@ -60,7 +63,7 @@ function progressive_profiling_menu() {
     'page callback' => 'drupal_get_form',
     'page arguments' => array('progressive_profiling_fields_enable_confirm', 6),
     'type' => MENU_CALLBACK | MENU_VISIBLE_IN_BREADCRUMB,
-    'file' => 'progressive_profiling.admin.inc'
+    'file' => 'progressive_profiling.admin.fields.inc'
   );
   $items[$base_admin_url.'/fields/delete/%progressive_profiling_field'] = array(
     'title' => 'Delete field',
@@ -68,7 +71,7 @@ function progressive_profiling_menu() {
     'page callback' => 'drupal_get_form',
     'page arguments' => array('progressive_profiling_fields_delete_confirm', 6),
     'type' => MENU_CALLBACK | MENU_VISIBLE_IN_BREADCRUMB,
-    'file' => 'progressive_profiling.admin.inc'
+    'file' => 'progressive_profiling.admin.fields.inc'
   );
   // Not needed at the moment.
   /*$items[$base_admin_url.'/fields/edit/%progressive_profiling_field'] = array(
@@ -85,7 +88,7 @@ function progressive_profiling_menu() {
     'page callback' => 'progressive_profiling_fields_conditions_add',
     'page arguments' => array(6),
     'type' => MENU_CALLBACK | MENU_VISIBLE_IN_BREADCRUMB,
-    'file' => 'progressive_profiling.admin.inc'
+    'file' => 'progressive_profiling.admin.fields.inc'
   );
   // This is the maximum depth of a menu in Drupal7: 9 parts (0 to 8)
   $items[$base_admin_url.'/fields/conditions/%progressive_profiling_field/edit/%'] = array(
@@ -94,7 +97,7 @@ function progressive_profiling_menu() {
     'page callback' => 'progressive_profiling_fields_conditions_edit',
     'page arguments' => array(6, 8),
     'type' => MENU_CALLBACK | MENU_VISIBLE_IN_BREADCRUMB,
-    'file' => 'progressive_profiling.admin.inc'
+    'file' => 'progressive_profiling.admin.fields.inc'
   );
   $items[$base_admin_url.'/fields/conditions/%progressive_profiling_field/edit_set'] = array(
     'title' => 'Conditions settings',
@@ -102,15 +105,77 @@ function progressive_profiling_menu() {
     'page callback' => 'drupal_get_form',
     'page arguments' => array('progressive_profiling_fields_conditions_settings_form', 6),
     'type' => MENU_CALLBACK | MENU_VISIBLE_IN_BREADCRUMB,
-    'file' => 'progressive_profiling.admin.inc'
+    'file' => 'progressive_profiling.admin.fields.inc'
   );
+
+  // Areas configurations.
+  $items[$base_admin_url.'/areas'] = array(
+    'title' => 'Areas',
+    'access arguments' => array('administer users'),
+    'page callback' => 'progressive_profiling_areas',
+    'type' => MENU_LOCAL_TASK,
+    'file' => 'progressive_profiling.admin.areas.inc',
+    'weight' => -3,
+  );
+  $items[$base_admin_url.'/areas/disable/%progressive_profiling_area'] = array(
+    'title' => 'Disable area',
+    'access arguments' => array('administer users'),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('progressive_profiling_areas_disable_confirm', 6),
+    'type' => MENU_CALLBACK | MENU_VISIBLE_IN_BREADCRUMB,
+    'file' => 'progressive_profiling.admin.areas.inc'
+  );
+  $items[$base_admin_url.'/areas/enable/%progressive_profiling_area'] = array(
+    'title' => 'Enable area',
+    'access arguments' => array('administer users'),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('progressive_profiling_areas_enable_confirm', 6),
+    'type' => MENU_CALLBACK | MENU_VISIBLE_IN_BREADCRUMB,
+    'file' => 'progressive_profiling.admin.areas.inc'
+  );
+  $items[$base_admin_url.'/areas/delete/%progressive_profiling_area'] = array(
+    'title' => 'Delete area',
+    'access arguments' => array('administer users'),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('progressive_profiling_areas_delete_confirm', 6),
+    'type' => MENU_CALLBACK | MENU_VISIBLE_IN_BREADCRUMB,
+    'file' => 'progressive_profiling.admin.areas.inc'
+  );
+  $items[$base_admin_url.'/areas/edit/%progressive_profiling_area'] = array(
+    'title' => 'Edit areas',
+    'access arguments' => array('administer users'),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('progressive_profiling_areas_add_edit_form', 6),
+    'type' => MENU_CALLBACK | MENU_VISIBLE_IN_BREADCRUMB,
+    'file' => 'progressive_profiling.admin.areas.inc'
+  );
+  $items[$base_admin_url.'/areas/conditions/%progressive_profiling_area/add'] = array(
+    'title' => 'Add area condition',
+    'access arguments' => array('administer users'),
+    'page callback' => 'progressive_profiling_areas_conditions_add',
+    'page arguments' => array(6),
+    'type' => MENU_CALLBACK | MENU_VISIBLE_IN_BREADCRUMB,
+    'file' => 'progressive_profiling.admin.areas.inc'
+  );
+  // This is the maximum depth of a menu in Drupal7: 9 parts (0 to 8)
+  $items[$base_admin_url.'/areas/conditions/%progressive_profiling_area/edit/%'] = array(
+    'title' => 'Edit area condition',
+    'access arguments' => array('administer users'),
+    'page callback' => 'progressive_profiling_areas_conditions_edit',
+    'page arguments' => array(6, 8),
+    'type' => MENU_CALLBACK | MENU_VISIBLE_IN_BREADCRUMB,
+    'file' => 'progressive_profiling.admin.areas.inc'
+  );
+
+  // General settings.
   $items[$base_admin_url . '/settings'] = array(
     'title' => 'Settings',
     'access arguments' => array('administer users'),
     'page callback' => 'drupal_get_form',
     'page arguments' => array('progressive_profiling_settings_form'),
     'type' => MENU_LOCAL_TASK,
-    'file' => 'progressive_profiling.admin.inc'
+    'file' => 'progressive_profiling.admin.inc',
+    'weight' => -1,
   );
   $items[$base_admin_url . '/settings/condition/add'] = array(
     'title' => 'Add condition',
@@ -179,6 +244,27 @@ function progressive_profiling_field_load_all() {
 }
 
 /**
+ * Helper function to load all the areas.
+ */
+function progressive_profiling_areas_load_all() {
+  $areas = &drupal_static(__FUNCTION__, NULL);
+  if (!isset($areas)) {
+    $query = db_select('progressive_profiling_areas', 'ppa');
+    $query->fields('ppa');
+    $areas = $query->execute()->fetchAllAssoc('area_id');
+    if (!empty($areas)) {
+      // Unserialize the configuration column.
+      foreach ($areas as $key => $row) {
+        if (isset($row->configuration)) {
+          $areas[$key]->configuration = unserialize($areas[$key]->configuration);
+        }
+      }
+    }
+  }
+  return $areas;
+}
+
+/**
  * Loads a profiling field.
  *
  * @param $field_name
@@ -187,6 +273,17 @@ function progressive_profiling_field_load_all() {
 function progressive_profiling_field_load($field_name) {
   $fields = progressive_profiling_field_load_all();
   return (isset($fields[$field_name]) ? $fields[$field_name] : FALSE);
+}
+
+/**
+ * Loads an area.
+ *
+ * @param int $area_id
+ *  The area id.
+ */
+function progressive_profiling_area_load($area_id) {
+  $areas = progressive_profiling_areas_load_all();
+  return (isset($areas[$area_id]) ? $areas[$area_id] : FALSE);
 }
 
 /**
@@ -204,6 +301,20 @@ function progressive_profiling_field_save($field) {
 }
 
 /**
+ * Saves an area to the database.
+ *
+ * @param $area
+ *  An object that maps over the progressive_profiling_areas table.
+ */
+function progressive_profiling_area_save($area) {
+  $primary_keys = array();
+  if (empty($area->is_new)) {
+    $primary_keys[] = 'area_id';
+  }
+  drupal_write_record('progressive_profiling_areas', $area, $primary_keys);
+}
+
+/**
  * Deletes (removes) a field from the profiling list.
  *
  * @param string $field_name
@@ -211,6 +322,16 @@ function progressive_profiling_field_save($field) {
  */
 function progressive_profiling_field_delete($field_name) {
   db_delete('progressive_profiling_fields')->condition('field_name', $field_name)->execute();
+}
+
+/**
+ * Deletes (removes) an area from the profiling area list.
+ *
+ * @param int $area_id
+ *  The id of the area.
+ */
+function progressive_profiling_area_delete($area_id) {
+  db_delete('progressive_profiling_areas')->condition('area_id', $area_id)->execute();
 }
 
 /**
@@ -240,4 +361,28 @@ function progressive_profiling_field_object_prepare($field_object) {
   $field_object->weight = 0;
   $field_object->configuration = array();
   $field_object->is_new = TRUE;
+}
+
+/**
+ * Helper function to prepare an empty area object.
+ *
+ * @param object $area
+ *  An usually empty object (but it can also contain already some properties).
+ */
+function progressive_profiling_area_object_prepare($area) {
+  $area->status = 0;
+  $area->configuration = array();
+  $area->is_new = TRUE;
+}
+
+/**
+ * Returns an array with all the contexts currently available for conditions.
+ */
+function progressive_profiling_available_contexts() {
+  $contexts['logged-in-user'] = ctools_access_get_loggedin_context();
+  $contexts['node'] = ctools_context_create_empty('entity:node');
+  $contexts['node']->identifier = t('Node being viewed');
+  $contexts['term'] = ctools_context_create_empty('entity:taxonomy_term');
+  $contexts['term']->identifier = t('Term being viewed');
+  return $contexts;
 }
