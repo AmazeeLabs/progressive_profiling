@@ -425,12 +425,13 @@ function progressive_profiling_page_build(&$page) {
   $account = user_load($user->uid);
   $profile_fields = progressive_profiling_check_for_fields($account);
   if (!empty($profile_fields)) {
-    $page['content']['#attached']['js'][] = drupal_get_path('module', 'progressive_profiling') . '/js/progressive_profiling.js';
-    $page['content']['profile_form'] = array(
-      'form' => drupal_get_form('progressive_profiling_form', $account, $profile_fields['profile_fields'], $profile_fields['area'])
-    );
     ctools_include('modal');
     ctools_modal_add_js();
+    $resource_id = progressive_profiling_get_resource_id();
+    $page['content']['#attached']['js'][] = drupal_get_path('module', 'progressive_profiling') . '/js/progressive_profiling.js';
+    $page['content']['profile_form'] = array(
+      'form' => drupal_get_form('progressive_profiling_form', $account, $profile_fields['profile_fields'], $profile_fields['area'], $resource_id),
+    );
   }
 }
 
@@ -445,18 +446,25 @@ function progressive_profiling_page_build(&$page) {
  *
  * @param object $area
  *  The profiling area object.
+ *
+ * @param string $resource_id
+ *  The id of the resource for which we generate the form.
  */
-function progressive_profiling_form($form, &$form_state, $account, $profile_fields, $area) {
+function progressive_profiling_form($form, &$form_state, $account, $profile_fields, $area, $resource_id) {
   $form['title'] = array(
     '#type' => 'item',
     '#markup' => !empty($area->configuration['form_title']) ? t($area->configuration['form_title']) : t('To access the content, please fill in the following fields.'),
+  );
+  $form['fields'] = array(
+    '#prefix' => '<div id="progressive-profiling-fields">',
+    '#suffix' => '</div>',
   );
   foreach ($profile_fields as $profile_field) {
     $field_instance = field_info_instance('user', $profile_field, 'user');
     // All the fields in the profile form are required if the user chooses to
     // submit the form.
     $field_instance['required'] = TRUE;
-    $form += (array) ctools_field_invoke_field($field_instance, 'form', 'user', $account, $form, $form_state, array('default' => TRUE));
+    $form['fields'] += (array) ctools_field_invoke_field($field_instance, 'form', 'user', $account, $form, $form_state, array('default' => TRUE));
   }
 
   // @todo: should we leverage on the 'entity' object which is injected into the
@@ -469,11 +477,23 @@ function progressive_profiling_form($form, &$form_state, $account, $profile_fiel
     '#type' => 'value',
     '#value' => $profile_fields,
   );
+  $form['resource_id'] = array(
+    '#type' => 'value',
+    '#value' => $resource_id,
+  );
+  $form['area_id'] = array(
+    '#type' => 'value',
+    '#value' => $area->area_id,
+  );
   $form['submit'] = array(
     '#type' => 'submit',
     // @todo: maybe integrate with i18n here?
     '#value' => !empty($area->configuration['submit_button_text']) ? t($area->configuration['submit_button_text']) : t('Submit'),
     '#weight' => 50,
+    '#ajax' => array(
+      'callback' => 'progressive_profiling_form_ajax_callback',
+      'wrapper' => 'progressive-profiling-fields',
+    ),
   );
   return $form;
 }
@@ -497,6 +517,61 @@ function progressive_profiling_form_submit(&$form, &$form_state) {
     $account->{$field_name} = $form_state['values'][$field_name];
   }
   user_save($account);
+  drupal_set_message(t('Your data has been saved.'));
+
+  // Update also the last answered timestamp, and mark the resource id as being
+  // accessible for the user all the time.
+  db_merge('progressive_profiling_last_answer_time')
+    ->key(array(
+      'uid' => $form_state['values']['account_id'],
+      'area_id' => $form_state['values']['area_id'],
+      'resource_id' => $form_state['values']['resource_id']))
+    ->fields(array(
+      'uid' => $form_state['values']['account_id'],
+      'area_id' => $form_state['values']['area_id'],
+      'resource_id' => $form_state['values']['resource_id'],
+      'timestamp' => REQUEST_TIME))
+    ->execute();
+
+  db_merge('progressive_profiling_resources_access')
+    ->key(array('uid' => $form_state['values']['account_id'], 'resource_id' => $form_state['values']['resource_id']))
+    ->fields(array('uid' => $form_state['values']['account_id'], 'resource_id' => $form_state['values']['resource_id']))
+    ->execute();
+
+  $form_state['submit_success'] = TRUE;
+}
+
+/**
+ * Ajax callback for the profiling form submit.
+ */
+function progressive_profiling_form_ajax_callback($form, $form_state) {
+  // If the submit was not successful then we just show the fields again.
+  if (empty($form_state['submit_success'])) {
+    return $form['fields'];
+  }
+  else {
+    // Dismiss the modal and show the status messages.
+    ctools_include('modal');
+    $commands[] = ctools_modal_command_dismiss();
+    $commands[] = ajax_command_replace('div.alert-block', theme('status_messages'));
+    print ajax_render($commands);
+    drupal_exit();
+  }
+}
+
+/**
+ * Returns the id of the resource available at a certain path.
+ *
+ * The current implementation will just use the path itself as the id.
+ *
+ * @param string $path
+ *  The path of the resource. By default, it will be $_GET['q'].
+ */
+function progressive_profiling_get_resource_id($path = NULL) {
+  if (empty($path)) {
+    $path = $_GET['q'];
+  }
+  return 'path:' . $path;
 }
 
 /**
@@ -517,6 +592,7 @@ function progressive_profiling_check_for_fields($account = NULL, $path = NULL) {
   if (empty($path)) {
     $path = $_GET['q'];
   }
+  $resource_id = progressive_profiling_get_resource_id($path);
   $profile_fields = array();
   // When deciding if we show profiling fields, we do the following:
   // 1. Check first the general settings.
@@ -525,14 +601,14 @@ function progressive_profiling_check_for_fields($account = NULL, $path = NULL) {
   // in by the user.
   // Before being able to check the access, we need to initialize the contexts.
   $contexts = progressive_profiling_get_contexts($account, $path);
-  $access = progressive_profiling_check_general_access($contexts);
+  $access = progressive_profiling_check_general_access($account, $contexts, $resource_id);
   // Only continue if the conditions for the general settings are met.
   if ($access) {
-    $area = progressive_profiling_get_matched_area($contexts);
+    $area = progressive_profiling_get_matched_area($account, $contexts, $resource_id);
     // If we found an area, we can search for the next fields which we should
     // ask the user.
     if (!empty($area)) {
-      $profile_fields = progressive_profile_get_next_fields($account, $area, $contexts);
+      $profile_fields = progressive_profile_get_next_fields($account, $area, $contexts, $resource_id);
     }
   }
   // When we have profile fields, we also want to return the area where these
@@ -549,10 +625,41 @@ function progressive_profiling_check_for_fields($account = NULL, $path = NULL) {
 /**
  * Checks the conditions from the general profiling settings.
  *
+ * @param object $account
+ *  The account for which we check the access.
+ *
  * @param $contexts
  *  An array of contexts for the conditions.
+ *
+ * @param string $resource_id
+ *  The id of the resource for which we check the access.
  */
-function progressive_profiling_check_general_access($contexts) {
+function progressive_profiling_check_general_access($account, $contexts, $resource_id) {
+  // First, check if the user has direct access to the resource. If yes, then we
+  // will actually return FALSE, because then the user should not see the
+  // fields.
+  $result = db_select('progressive_profiling_resources_access', 'ppra')->fields('ppra')
+    ->condition('ppra.uid', $account->uid)->condition('ppra.resource_id', $resource_id)
+    ->execute()->fetch();
+  if (!empty($result)) {
+    return FALSE;
+  }
+  // Second, we check the time interval, to make sure we do not ask the user to
+  // fill in the fields too often. We store this information also at the area
+  // and resource id level, so if we will ever want to have a more fine grained
+  // check, we can do that. Currently, we use the same time interval for all the
+  // areas and resource ids.
+  $result = db_select('progressive_profiling_last_answer_time', 'pplat')->fields('pplat', array('uid', 'timestamp'))
+    ->condition('pplat.uid', $account->uid)->orderBy('pplat.timestamp', 'DESC')
+    ->execute()->fetch();
+  if (!empty($result)) {
+    $time_interval = variable_get('progressive_profiling_time_interval', 0);
+    // If there is not enough time passed since the last time when the user
+    // filled in the fields, we deny the access.
+    if (REQUEST_TIME - $result->timestamp < $time_interval) {
+      return FALSE;
+    }
+  }
   ctools_include('context');
   $settings['plugins'] = variable_get('progressive_profiling_conditions', array());
   $settings['logic'] = variable_get('progressive_profiling_conditions_logic', 'and');
@@ -563,10 +670,16 @@ function progressive_profiling_check_general_access($contexts) {
  * Searches for the first area that matches the conditions for a set of
  * contexts.
  *
+ * @param object $account
+ *  The account for which we check the access.
+ *
  * @param $contexts
  *  An array of contexts for the conditions.
+ *
+ * @param string $resource_id
+ *  The id of the resource for which we check the areas.
  */
-function progressive_profiling_get_matched_area($contexts) {
+function progressive_profiling_get_matched_area($account, $contexts, $resource_id) {
   ctools_include('context');
   $all_areas = progressive_profiling_areas_load_all();
   foreach ($all_areas as $area) {
@@ -597,8 +710,11 @@ function progressive_profiling_get_matched_area($contexts) {
  *
  * @param $contexts
  *  An array of contexts for the conditions.
+ *
+ * @param string $resource_id
+ *  The id of the resource for which we get the fields.
  */
-function progressive_profile_get_next_fields($account, $area, $contexts) {
+function progressive_profile_get_next_fields($account, $area, $contexts, $resource_id) {
   ctools_include('context');
   $fields = progressive_profiling_field_load_all();
   $instances = field_info_instances('user', 'user');

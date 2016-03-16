@@ -82,10 +82,92 @@ function progressive_profiling_schema() {
     ),
     'primary key' => array('area_id'),
   );
+  $schema['progressive_profiling_resources_access'] = array(
+    'description' => 'Stores the resources ids to which the user has access without being asked to fill in fields anymore.',
+    'fields' => array(
+      'uid' => array(
+        'description' => 'The user id.',
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'resource_id' => array(
+        'type' => 'varchar',
+        'length' => 256,
+        'not null' => TRUE,
+        'default' => '',
+        'description' => 'The unique identifier of the resource.',
+      ),
+    ),
+    'indexes' => array(
+      'uid_resource_id' => array('uid', 'resource_id'),
+    ),
+    'foreign keys' => array(
+      'uid' => array(
+        'table' => 'users',
+        'columns' => array('uid' => 'uid'),
+      ),
+    ),
+  );
+  $schema['progressive_profiling_last_answer_time'] = array(
+    'description' => 'Stores the last time when the users last answered to a profiling questions set.',
+    'fields' => array(
+      'uid' => array(
+        'description' => 'The user id.',
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'area_id' => array(
+        'description' => 'The area where the user was asked to fill in the fields.',
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'resource_id' => array(
+        'type' => 'varchar',
+        'length' => 256,
+        'not null' => TRUE,
+        'default' => '',
+        'description' => 'The unique identifier of the resource.',
+      ),
+      'timestamp' => array(
+        'description' => 'The UNIX timestamp.',
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+    ),
+    'indexes' => array(
+      'uid_area_resource' => array('uid', 'area_id', 'resource_id'),
+    ),
+    'foreign keys' => array(
+      'uid' => array(
+        'table' => 'users',
+        'columns' => array('uid' => 'uid'),
+      ),
+      'area_id' => array(
+        'table' => 'progressive_profiling_areas',
+        'columns' => array('area_id' => 'area_id'),
+      ),
+    ),
+  );
   return $schema;
 }
 
-function progressive_profiling_update_7003() {
+/**
+ * Implements hook_update_N(). Creates possible missing tables.
+ */
+function progressive_profiling_update_7001() {
+  $tables_to_check = array(
+    'progressive_profiling_areas',
+    'progressive_profiling_resources_access',
+    'progressive_profiling_last_answer_time'
+  );
   $schema = progressive_profiling_schema();
-  db_create_table('progressive_profiling_areas', $schema['progressive_profiling_areas']);
+  foreach ($tables_to_check as $table_name) {
+    if (!db_table_exists($table_name)) {
+      db_create_table($table_name, $schema[$table_name]);
+    }
+  }
 }

@@ -41,7 +41,15 @@ function progressive_profiling_settings_form() {
     '#markup' => implode('<br />', $conditions_configuration),
   );
 
-  return $form;
+  $form['progressive_profiling_time_interval'] = array(
+    '#type' => 'select',
+    '#options' => array(0 => t('No interval (not recommended, use it for testing)')) + drupal_map_assoc(array(60, 300, 600, 1800, 3600, 10800, 21600, 32400, 43200, 86400, 172800, 259200, 604800), 'format_interval'),
+    '#title' => t('Time interval'),
+    '#description' => t('Please select the time interval between the last time when the user filled in the fields for the profile and when the user is asked again to do that. Be aware that shorter intervals could make the users angry.'),
+    '#default_value' => variable_get('progressive_profiling_time_interval', 0),
+  );
+
+  return system_settings_form($form);
 }
 
 /**
