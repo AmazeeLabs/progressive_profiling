@@ -421,10 +421,82 @@ function progressive_profiling_get_contexts($account = NULL, $path = '') {
  * Implements hook_page_build().
  */
 function progressive_profiling_page_build(&$page) {
-  $profile_fields = progressive_profiling_check_for_fields();
+  global $user;
+  $account = user_load($user->uid);
+  $profile_fields = progressive_profiling_check_for_fields($account);
   if (!empty($profile_fields)) {
-    // @todo: code to do when there are fields to be filled in by the user.
+    $page['content']['#attached']['js'][] = drupal_get_path('module', 'progressive_profiling') . '/js/progressive_profiling.js';
+    $page['content']['profile_form'] = array(
+      'form' => drupal_get_form('progressive_profiling_form', $account, $profile_fields['profile_fields'], $profile_fields['area'])
+    );
+    ctools_include('modal');
+    ctools_modal_add_js();
   }
+}
+
+/**
+ * Form constructor for the profiling form.
+ *
+ * @param object $account
+ *  The account for which the form is shown.
+ *
+ * @param array $profile_fields
+ *  An array with the field names of the fields to be shown on the form.
+ *
+ * @param object $area
+ *  The profiling area object.
+ */
+function progressive_profiling_form($form, &$form_state, $account, $profile_fields, $area) {
+  $form['title'] = array(
+    '#type' => 'item',
+    '#markup' => !empty($area->configuration['form_title']) ? t($area->configuration['form_title']) : t('To access the content, please fill in the following fields.'),
+  );
+  foreach ($profile_fields as $profile_field) {
+    $field_instance = field_info_instance('user', $profile_field, 'user');
+    // All the fields in the profile form are required if the user chooses to
+    // submit the form.
+    $field_instance['required'] = TRUE;
+    $form += (array) ctools_field_invoke_field($field_instance, 'form', 'user', $account, $form, $form_state, array('default' => TRUE));
+  }
+
+  // @todo: should we leverage on the 'entity' object which is injected into the
+  // form by the ctools_field_invoke_field() call?
+  $form['account_id'] = array(
+    '#type' => 'value',
+    '#value' => $account->uid,
+  );
+  $form['profile_fields'] = array(
+    '#type' => 'value',
+    '#value' => $profile_fields,
+  );
+  $form['submit'] = array(
+    '#type' => 'submit',
+    // @todo: maybe integrate with i18n here?
+    '#value' => !empty($area->configuration['submit_button_text']) ? t($area->configuration['submit_button_text']) : t('Submit'),
+    '#weight' => 50,
+  );
+  return $form;
+}
+
+/**
+ * Validate handler for the profile form.
+ *
+ * It just forwards the validation to field_attach_form_validate().
+ */
+function progressive_profiling_form_validate(&$form, &$form_state) {
+  $account = user_load($form_state['values']['account_id']);
+  field_attach_form_validate('user', $account, $form, $form_state);
+}
+
+/**
+ * Submit handler for the profiling form.
+ */
+function progressive_profiling_form_submit(&$form, &$form_state) {
+  $account = user_load($form_state['values']['account_id']);
+  foreach ($form_state['values']['profile_fields'] as $field_name) {
+    $account->{$field_name} = $form_state['values'][$field_name];
+  }
+  user_save($account);
 }
 
 /**
@@ -463,6 +535,14 @@ function progressive_profiling_check_for_fields($account = NULL, $path = NULL) {
       $profile_fields = progressive_profile_get_next_fields($account, $area, $contexts);
     }
   }
+  // When we have profile fields, we also want to return the area where these
+  // fields will be shown. Based on it, the form may look different.
+  if (!empty($profile_fields)) {
+    $profile_fields = array(
+      'profile_fields' => $profile_fields,
+      'area' => $area,
+    );
+  }
   return $profile_fields;
 }
 
@@ -494,6 +574,8 @@ function progressive_profiling_get_matched_area($contexts) {
     if (!$area->status) {
       continue;
     }
+    // @todo: one more thing to check is if the user already answered
+    // questions for this area.
     $settings['plugins'] = !empty($area->configuration['conditions']) ? $area->configuration['conditions'] : array();
     $settings['logic'] = !empty($area->configuration['conditions_logic']) ? $area->configuration['conditions_logic'] : 'and';
     if (ctools_access($settings, $contexts)) {

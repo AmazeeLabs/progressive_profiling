@@ -126,6 +126,11 @@ function progressive_profiling_areas_add_edit_form($form, &$form_state, $area = 
     '#title' => t('Submit button text'),
     '#default_value' => !empty($area->configuration['submit_button_text']) ? $area->configuration['submit_button_text'] : '',
   );
+  $area_elements['form_title'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Form title'),
+    '#default_value' => !empty($area->configuration['form_title']) ? $area->configuration['form_title'] : 'To access the content, please fill in the following fields.',
+  );
   $area_elements['questions_nr'] = array(
     '#type' => 'textfield',
     '#title' => t('Amount of questions to ask'),
