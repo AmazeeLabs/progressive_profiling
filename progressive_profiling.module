@@ -459,6 +459,7 @@ function progressive_profiling_form($form, &$form_state, $account, $profile_fiel
     '#prefix' => '<div id="progressive-profiling-fields">',
     '#suffix' => '</div>',
   );
+  ctools_include('fields');
   foreach ($profile_fields as $profile_field) {
     $field_instance = field_info_instance('user', $profile_field, 'user');
     // All the fields in the profile form are required if the user chooses to
