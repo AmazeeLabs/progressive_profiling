@@ -38,9 +38,9 @@ function progressive_profiling_areas_table() {
       $condition_configuration = array();
       if (!empty($area->configuration['conditions'])) {
         $contexts = progressive_profiling_available_contexts();
-        foreach ($area->configuration['conditions'] as $plugin_name => $plugin_conf) {
-          $plugin = ctools_get_access_plugin($plugin_name);
-          $condition_configuration[] = ctools_access_summary($plugin, $contexts, $plugin_conf) . ' ' . l(t('edit condition'), $base_admin_url . '/areas/conditions/' . $area_id . '/edit/' . $plugin_name, array('query' => drupal_get_destination()));
+        foreach ($area->configuration['conditions'] as $condition_key => $plugin_conf) {
+          $plugin = ctools_get_access_plugin($plugin_conf['name']);
+          $condition_configuration[] = ctools_access_summary($plugin, $contexts, $plugin_conf) . ' ' . l(t('edit condition'), $base_admin_url . '/areas/conditions/' . $area_id . '/edit/' . $condition_key, array('query' => drupal_get_destination()));
         }
         $conditions_logic = !empty($area->configuration['conditions_logic']) ? $area->configuration['conditions_logic'] : 'and';
         $condition_configuration[] = t('<strong>Logic</strong>: @logic', array('@logic' => ($conditions_logic === 'or') ? t('Only one criteria must pass.') : t('All criteria must pass.'))) . ' ' . l(t('edit logic'), $base_admin_url . '/areas/edit/' . $area_id, array('query' => drupal_get_destination()));
@@ -257,9 +257,15 @@ function progressive_profiling_areas_conditions_add($area) {
 }
 
 /**
- * Page callback for editing a area condition.
+ * Page callback for editing an area condition.
+ *
+ * @param object $area
+ *  The area object.
+ *
+ * @param string $condition_key
+ *  The identifier of the condition.
  */
-function progressive_profiling_areas_conditions_edit($area, $plugin_name) {
+function progressive_profiling_areas_conditions_edit($area, $condition_key) {
   ctools_include('context');
   $form_state = array();
   $form_state['build_info']['args'] = array($area);
@@ -267,7 +273,8 @@ function progressive_profiling_areas_conditions_edit($area, $plugin_name) {
   // values from the first step (from progressive_profiling_area_condition_form())
   // into the storage of the form_state.
   $form_state['storage']['condition_configuration'] = TRUE;
-  $form_state['storage']['condition_values']['condition_type'] = $plugin_name;
+  $form_state['storage']['condition_values']['condition_key'] = $condition_key;
+  $form_state['storage']['condition_values']['condition_type'] = $area->configuration['conditions'][$condition_key]['name'];
   $form_state['storage']['condition_values']['area_id'] = $area->area_id;
 
   return drupal_build_form('progressive_profiling_areas_condition_form', $form_state);
@@ -329,11 +336,17 @@ function progressive_profiling_areas_condition_form($form, &$form_state, $area) 
  */
 function progressive_profiling_areas_condition_configuration_form($form, &$form_state, $area) {
   $plugin_name = $form_state['storage']['condition_values']['condition_type'];
+  $condition_key = !empty($form_state['storage']['condition_values']['condition_key']) ? $form_state['storage']['condition_values']['condition_key'] : NULL;
   $plugin = ctools_get_access_plugin($plugin_name);
   $form['settings'] = array('#tree' => TRUE);
   $form_state['plugin'] = $plugin;
 
-  $condition_configuration = !empty($area->configuration['conditions'][$plugin_name]) ? $area->configuration['conditions'][$plugin_name] : array();
+  if (empty($condition_key)) {
+    $condition_configuration = array();
+  }
+  else {
+    $condition_configuration = !empty($area->configuration['conditions'][$condition_key]) ? $area->configuration['conditions'][$condition_key] : array();
+  }
 
   $contexts = progressive_profiling_available_contexts();
   if (isset($plugin['required context'])) {
@@ -346,6 +359,12 @@ function progressive_profiling_areas_condition_configuration_form($form, &$form_
   if ($function = ctools_plugin_get_function($plugin, 'settings form')) {
     $settings = !empty($condition_configuration['settings']) ? $condition_configuration['settings'] : $plugin['default'];
     $form = $function($form, $form_state, $settings);
+  }
+  if (!empty($condition_key)) {
+    $form['condition_key'] = array(
+      '#type' => 'value',
+      '#value' => $condition_key,
+    );
   }
   $form['not'] = array(
     '#type' => 'checkbox',
@@ -427,18 +446,19 @@ function progressive_profiling_areas_condition_form_submit($form, &$form_state) 
     }
     // Just update the configuration for this area condition (or remove it).
     $area = progressive_profiling_area_load($form_state['storage']['condition_values']['area_id']);
+    $condition_key = !empty($form_state['values']['condition_key']) ? $form_state['values']['condition_key'] : time();
     if (!empty($form_state['clicked_button']['#remove'])) {
-      unset($area->configuration['conditions'][$form_state['storage']['condition_values']['condition_type']]);
+      unset($area->configuration['conditions'][$condition_key]);
       if (empty($area->configuration['conditions'])) {
         unset($area->configuration['conditions']);
       }
     }
     else {
-      $area->configuration['conditions'][$form_state['storage']['condition_values']['condition_type']]['settings'] = isset($form_state['values']['settings']) ? $form_state['values']['settings'] : NULL;
-      $area->configuration['conditions'][$form_state['storage']['condition_values']['condition_type']]['name'] = $form_state['storage']['condition_values']['condition_type'];
-      $area->configuration['conditions'][$form_state['storage']['condition_values']['condition_type']]['not'] = $form_state['values']['not'];
+      $area->configuration['conditions'][$condition_key]['settings'] = isset($form_state['values']['settings']) ? $form_state['values']['settings'] : NULL;
+      $area->configuration['conditions'][$condition_key]['name'] = $form_state['storage']['condition_values']['condition_type'];
+      $area->configuration['conditions'][$condition_key]['not'] = $form_state['values']['not'];
       if (!empty($form_state['values']['context'])) {
-        $area->configuration['conditions'][$form_state['storage']['condition_values']['condition_type']]['context'] = $form_state['values']['context'];
+        $area->configuration['conditions'][$condition_key]['context'] = $form_state['values']['context'];
       }
     }
     progressive_profiling_area_save($area);

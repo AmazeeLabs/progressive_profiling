@@ -17,9 +17,9 @@ function progressive_profiling_settings_form() {
   $base_admin_url = progressive_profiling_base_admin_url();
   if (!empty($conditions)) {
     $contexts = progressive_profiling_available_contexts();
-      foreach ($conditions as $plugin_name => $plugin_conf) {
-        $plugin = ctools_get_access_plugin($plugin_name);
-        $conditions_configuration[] = ctools_access_summary($plugin, $contexts, $plugin_conf) . ' ' . l(t('edit condition'), $base_admin_url . '/settings/condition/edit/' . $plugin_name, array('query' => drupal_get_destination()));
+      foreach ($conditions as $condition_key => $plugin_conf) {
+        $plugin = ctools_get_access_plugin($plugin_conf['name']);
+        $conditions_configuration[] = ctools_access_summary($plugin, $contexts, $plugin_conf) . ' ' . l(t('edit condition'), $base_admin_url . '/settings/condition/edit/' . $condition_key, array('query' => drupal_get_destination()));
       }
       $conditions_logic = variable_get('progressive_profiling_conditions_logic', 'and');
       $conditions_configuration[] = t('<strong>Logic</strong>: @logic', array('@logic' => ($conditions_logic === 'or') ? t('Only one criteria must pass.') : t('All criteria must pass.'))) . ' ' . l(t('edit logic'), $base_admin_url . '/settings/condition/edit_logic', array('query' => drupal_get_destination()));
@@ -66,17 +66,19 @@ function progressive_profiling_settings_conditions_add() {
 /**
  * Page callback for editing a condition for the general settings.
  *
- * @param string $plugin_name
- *  The condition plugin name.
+ * @param string $condition_key
+ *  The condition identifier.
  */
-function progressive_profiling_settings_conditions_edit($plugin_name) {
+function progressive_profiling_settings_conditions_edit($condition_key) {
   ctools_include('context');
   $form_state = array();
   // We directly want to show the condition configuration, so we prefill the
   // values from the first step (from progressive_profiling_condition_form())
   // into the storage of the form_state.
   $form_state['storage']['condition_configuration'] = TRUE;
-  $form_state['storage']['condition_values']['condition_type'] = $plugin_name;
+  $form_state['storage']['condition_values']['condition_key'] = $condition_key;
+  $conditions = variable_get('progressive_profiling_conditions', array());
+  $form_state['storage']['condition_values']['condition_type'] = $conditions[$condition_key]['name'];
 
   return drupal_build_form('progressive_profiling_settings_condition_form', $form_state);
 }
@@ -134,12 +136,18 @@ function progressive_profiling_settings_condition_form($form, &$form_state) {
  */
 function progressive_profiling_settings_condition_configuration_form($form, &$form_state) {
   $plugin_name = $form_state['storage']['condition_values']['condition_type'];
+  $condition_key = !empty($form_state['storage']['condition_values']['condition_key']) ? $form_state['storage']['condition_values']['condition_key'] : NULL;
   $plugin = ctools_get_access_plugin($plugin_name);
   $form['settings'] = array('#tree' => TRUE);
   $form_state['plugin'] = $plugin;
 
-  $conditions = variable_get('progressive_profiling_conditions', array());
-  $conditions = !empty($conditions[$plugin_name]) ? $conditions[$plugin_name] : array();
+  if (empty($condition_key)) {
+    $conditions = array();
+  }
+  else {
+    $conditions = variable_get('progressive_profiling_conditions', array());
+    $conditions = !empty($conditions[$condition_key]) ? $conditions[$condition_key] : array();
+  }
 
   $contexts = progressive_profiling_available_contexts();
   if (isset($plugin['required context'])) {
@@ -152,6 +160,12 @@ function progressive_profiling_settings_condition_configuration_form($form, &$fo
   if ($function = ctools_plugin_get_function($plugin, 'settings form')) {
     $settings = !empty($conditions['settings']) ? $conditions['settings'] : $plugin['default'];
     $form = $function($form, $form_state, $settings);
+  }
+  if (!empty($condition_key)) {
+    $form['condition_key'] = array(
+      '#type' => 'value',
+      '#value' => $condition_key,
+    );
   }
   $form['not'] = array(
     '#type' => 'checkbox',
@@ -226,15 +240,16 @@ function progressive_profiling_settings_condition_form_submit($form, &$form_stat
     }
     // Just update or remove the configuration.
     $conditions = variable_get('progressive_profiling_conditions', array());
+    $condition_key = !empty($form_state['values']['condition_key']) ? $form_state['values']['condition_key'] : time();
     if (!empty($form_state['clicked_button']['#remove'])) {
-      unset($conditions[$form_state['storage']['condition_values']['condition_type']]);
+      unset($conditions[$condition_key]);
     }
     else {
-      $conditions[$form_state['storage']['condition_values']['condition_type']]['settings'] = $form_state['values']['settings'];
-      $conditions[$form_state['storage']['condition_values']['condition_type']]['name'] = $form_state['storage']['condition_values']['condition_type'];
-      $conditions[$form_state['storage']['condition_values']['condition_type']]['not'] = $form_state['values']['not'];
+      $conditions[$condition_key]['settings'] = $form_state['values']['settings'];
+      $conditions[$condition_key]['name'] = $form_state['storage']['condition_values']['condition_type'];
+      $conditions[$condition_key]['not'] = $form_state['values']['not'];
       if (!empty($form_state['values']['context'])) {
-        $conditions[$form_state['storage']['condition_values']['condition_type']]['context'] = $form_state['values']['context'];
+        $conditions[$condition_key]['context'] = $form_state['values']['context'];
       }
     }
     variable_set('progressive_profiling_conditions', $conditions);
