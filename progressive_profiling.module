@@ -222,7 +222,8 @@ function progressive_profiling_base_admin_url() {
 }
 
 /**
- * Returns an array with all the questions.
+ * Returns an array with all the fields which are part of the progressive
+ * profiling.
  */
 function progressive_profiling_field_load_all() {
   $fields = &drupal_static(__FUNCTION__, NULL);
@@ -680,7 +681,7 @@ function progressive_profiling_check_general_access($account, $contexts, $resour
  * @param string $resource_id
  *  The id of the resource for which we check the areas.
  */
-function progressive_profiling_get_matched_area($account, $contexts, $resource_id) {
+function progressive_profiling_get_matched_area($account, $contexts, $resource_id = NULL) {
   ctools_include('context');
   $all_areas = progressive_profiling_areas_load_all();
   foreach ($all_areas as $area) {
@@ -715,7 +716,7 @@ function progressive_profiling_get_matched_area($account, $contexts, $resource_i
  * @param string $resource_id
  *  The id of the resource for which we get the fields.
  */
-function progressive_profile_get_next_fields($account, $area, $contexts, $resource_id) {
+function progressive_profile_get_next_fields($account, $area, $contexts, $resource_id = NULL) {
   ctools_include('context');
   $fields = progressive_profiling_field_load_all();
   $instances = field_info_instances('user', 'user');
@@ -736,7 +737,7 @@ function progressive_profile_get_next_fields($account, $area, $contexts, $resour
       $settings['plugins'] = !empty($field->configuration['conditions']) ? $field->configuration['conditions'] : array();
       $settings['logic'] = !empty($field->configuration['conditions_logic']) ? $field->configuration['conditions_logic'] : 'and';
       if (ctools_access($settings, $contexts)) {
-        $profile_fields[] = $field_name;
+        $profile_fields[$field_name] = $field_name;
         $fields_count++;
         if ($fields_count >= $max_fields) {
           // We reached the maximum number of fields, so just return here.
@@ -746,4 +747,43 @@ function progressive_profile_get_next_fields($account, $area, $contexts, $resour
     }
   }
   return $profile_fields;
+}
+
+/**
+ * Implements hook_form_FORM_ID_alter().
+ */
+function progressive_profiling_form_user_profile_form_alter(&$form, &$form_state, $form_id) {
+  global $user;
+  if (!user_access('administer users') && $form['#user']->uid == $user->uid) {
+    // We will alter the access to the fields which are part of the progressive
+    // profiling.
+    $fields = progressive_profiling_field_load_all();
+    $contexts = progressive_profiling_get_contexts();
+    // Construct a fake area which only has the qustions number in the
+    // configuration, to be able to call progressive_profile_get_next_fields().
+    $area = new stdClass();
+    // We should never have more than 500 fields.
+    $area->configuration['questions_nr'] = 500;
+    $available_fields = progressive_profile_get_next_fields($form['#user'], $area, $contexts);
+    foreach ($fields as $field_name => $field) {
+      if (empty($form[$field_name])) {
+        continue;
+      }
+      $form[$field_name]['#progressive_profile_field'] = TRUE;
+      // If the field is available, do nothing.
+      if (!empty($available_fields[$field_name])) {
+        continue;
+      }
+      // Also, if the user object already has a value for the field, then do
+      // nothing as well.
+      $field_language = field_language('user', $form['#user'], $field_name);
+      if (!empty($form['#user']->{$field_name}[$field_language])) {
+        continue;
+      }
+      // If we are here, we deny the access to the field because it means the
+      // field is part of the progressive profiling, but not in the available
+      // fields to be filled at the moment.
+      $form[$field_name]['#access'] = FALSE;
+    }
+  }
 }
