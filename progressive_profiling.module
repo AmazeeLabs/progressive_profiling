@@ -452,6 +452,7 @@ function progressive_profiling_page_build(&$page) {
  *  The id of the resource for which we generate the form.
  */
 function progressive_profiling_form($form, &$form_state, $account, $profile_fields, $area, $resource_id) {
+  $form['#parents'] = array();
   $form['title'] = array(
     '#type' => 'item',
     '#markup' => !empty($area->configuration['form_title']) ? t($area->configuration['form_title']) : t('To access the content, please fill in the following fields.'),
@@ -463,9 +464,6 @@ function progressive_profiling_form($form, &$form_state, $account, $profile_fiel
   ctools_include('fields');
   foreach ($profile_fields as $profile_field) {
     $field_instance = field_info_instance('user', $profile_field, 'user');
-    // All the fields in the profile form are required if the user chooses to
-    // submit the form.
-    $field_instance['required'] = TRUE;
     $form['fields'] += (array) ctools_field_invoke_field($field_instance, 'form', 'user', $account, $form, $form_state, array('default' => TRUE));
   }
 
