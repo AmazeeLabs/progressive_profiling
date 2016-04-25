@@ -744,7 +744,7 @@ function progressive_profile_get_account_completed_fields($uid) {
     $query->condition('ppcf.uid', $uid);
     $completed[$uid] = $query->execute()->fetchAllKeyed(0, 0);
   }
-  return $completed;
+  return $completed[$uid];
 }
 
 /**
