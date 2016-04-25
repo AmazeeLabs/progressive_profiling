@@ -738,9 +738,13 @@ function progressive_profiling_get_matched_area($account, $contexts, $resource_i
  */
 function progressive_profile_get_account_completed_fields($uid) {
   // @todo: does this worth to be statically cached?
-  $query = db_select('progressive_profiling_completed_fields', 'ppcf')->fields('ppcf', array('field_name'));
-  $query->condition('ppcf.uid', $uid);
-  return $query->execute()->fetchAllKeyed(0, 0);
+  $completed = &drupal_static(__FUNCTION__);
+  if (!isset($completed[$uid])) {
+    $query = db_select('progressive_profiling_completed_fields', 'ppcf')->fields('ppcf', array('field_name'));
+    $query->condition('ppcf.uid', $uid);
+    $completed[$uid] = $query->execute()->fetchAllKeyed(0, 0);
+  }
+  return $completed;
 }
 
 /**
@@ -777,7 +781,7 @@ function progressive_profile_get_next_fields($account, $area, $contexts, $resour
     }
     // Skip also the already completed fields.
     if (!empty($completed_fields[$field_name])) {
-      //continue;
+      continue;
     }
     $field_language = field_language('user', $account, $field_name);
     if (empty($account->{$field_name}[$field_language])) {
