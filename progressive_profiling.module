@@ -462,8 +462,10 @@ function progressive_profiling_form($form, &$form_state, $account, $profile_fiel
     '#suffix' => '</div>',
   );
   ctools_include('fields');
+  $weight = 0;
   foreach ($profile_fields as $profile_field) {
     $field_instance = field_info_instance('user', $profile_field, 'user');
+    $field_instance['widget']['weight'] = $weight++;
     $form['fields'] += (array) ctools_field_invoke_field($field_instance, 'form', 'user', $account, $form, $form_state, array('default' => TRUE));
   }
 
@@ -514,6 +516,7 @@ function progressive_profiling_form_validate(&$form, &$form_state) {
 function progressive_profiling_form_submit(&$form, &$form_state) {
   $account = user_load($form_state['values']['account_id']);
   foreach ($form_state['values']['profile_fields'] as $field_name) {
+    // @todo: figure out what to do with the empty values here.
     $account->{$field_name} = $form_state['values'][$field_name];
   }
   user_save($account);
@@ -537,6 +540,9 @@ function progressive_profiling_form_submit(&$form, &$form_state) {
     ->key(array('uid' => $form_state['values']['account_id'], 'resource_id' => $form_state['values']['resource_id']))
     ->fields(array('uid' => $form_state['values']['account_id'], 'resource_id' => $form_state['values']['resource_id']))
     ->execute();
+
+  // Last thing, mark the fields as being completed.
+  progressive_profiling_complete_fields($account->uid, $form_state['values']['profile_fields']);
 
   $form_state['submit_success'] = TRUE;
 }
@@ -572,6 +578,31 @@ function progressive_profiling_get_resource_id($path = NULL) {
     $path = $_GET['q'];
   }
   return 'path:' . $path;
+}
+
+/**
+ * Marks a set of fields as being completed by the user.
+ *
+ * @param int $uid
+ *  The user id.
+ *
+ * @param array $fields
+ *  An array of field names.
+ */
+function progressive_profiling_complete_fields($uid, $fields) {
+  // First, delete the fields from the table.
+  $query = db_delete('progressive_profiling_completed_fields');
+  $condition = db_or();
+  $insert = db_insert('progressive_profiling_completed_fields')->fields(array('uid', 'field_name'));
+  foreach ($fields as $field_name) {
+    $and = db_and()->condition('uid', $uid)->condition('field_name', $field_name);
+    $condition->condition($and);
+    $insert->values(array($uid, $field_name));
+  }
+  $query->condition($condition)->execute();
+
+  // Second, insert the values into the db.
+  $insert->execute();
 }
 
 /**
@@ -699,6 +730,20 @@ function progressive_profiling_get_matched_area($account, $contexts, $resource_i
 }
 
 /**
+ * Returns an array with all the completed fields of an account which are part
+ * of the progressive profiling.
+ *
+ * @param object $account
+ *  The account object.
+ */
+function progressive_profile_get_account_completed_fields($uid) {
+  // @todo: does this worth to be statically cached?
+  $query = db_select('progressive_profiling_completed_fields', 'ppcf')->fields('ppcf', array('field_name'));
+  $query->condition('ppcf.uid', $uid);
+  return $query->execute()->fetchAllKeyed(0, 0);
+}
+
+/**
  * Given an account and an area of the site, this function will return the next
  * profile fields which the user should be asked.
  *
@@ -721,6 +766,7 @@ function progressive_profile_get_next_fields($account, $area, $contexts, $resour
   $profile_fields = array();
   $fields_count = 0;
   $max_fields = !empty($area->configuration['questions_nr']) ? $area->configuration['questions_nr'] : 2;
+  $completed_fields = progressive_profile_get_account_completed_fields($account->uid);
   foreach ($fields as $field_name => $field) {
     if (!$field->status) {
       continue;
@@ -728,6 +774,10 @@ function progressive_profile_get_next_fields($account, $area, $contexts, $resour
     // Skip eventually deleted fields.
     if (empty($instances[$field_name])) {
       continue;
+    }
+    // Skip also the already completed fields.
+    if (!empty($completed_fields[$field_name])) {
+      //continue;
     }
     $field_language = field_language('user', $account, $field_name);
     if (empty($account->{$field_name}[$field_language])) {
@@ -763,19 +813,23 @@ function progressive_profiling_form_user_profile_form_alter(&$form, &$form_state
     // We should never have more than 500 fields.
     $area->configuration['questions_nr'] = 500;
     $available_fields = progressive_profile_get_next_fields($form['#user'], $area, $contexts);
+    $completed_fields = progressive_profile_get_account_completed_fields($form['#user']->uid);
+    $profiling_fields = array();
     foreach ($fields as $field_name => $field) {
       if (empty($form[$field_name])) {
         continue;
       }
       $form[$field_name]['#progressive_profile_field'] = TRUE;
-      // If the field is available, do nothing.
-      if (!empty($available_fields[$field_name])) {
+      // If the field is available or completed, do nothing.
+      if (!empty($available_fields[$field_name]) || !empty($completed_fields[$field_name])) {
+        $profiling_fields[] = $field_name;
         continue;
       }
       // Also, if the user object already has a value for the field, then do
       // nothing as well.
       $field_language = field_language('user', $form['#user'], $field_name);
       if (!empty($form['#user']->{$field_name}[$field_language])) {
+        $profiling_fields[] = $field_name;
         continue;
       }
       // If we are here, we deny the access to the field because it means the
@@ -783,5 +837,46 @@ function progressive_profiling_form_user_profile_form_alter(&$form, &$form_state
       // fields to be filled at the moment.
       $form[$field_name]['#access'] = FALSE;
     }
+    if (!empty($profiling_fields)) {
+      // Additional submit handler which will mark the fields submitted in the
+      // edit profile form as completed.
+      $form['#submit'][] = 'progressive_profiling_profile_form_submit';
+      $form['#attached']['js'][] = array(
+        'data' => array(
+          'progressive_profiling_fields' => $profiling_fields,
+        ),
+        'type' => 'setting',
+      );
+      $form['#attached']['js'][] = array(
+        'type' => 'file',
+        'data' => drupal_get_path('module', 'progressive_profiling') . '/js/progressive_profiling_user_form.js'
+      );
+      $form['profiling_fields'] = array(
+        '#type' => 'value',
+        '#value' => $profiling_fields,
+      );
+      // This field will be changed with javascript to mark which of the fields
+      // were changed by the user.
+      $form['changed_profile_fields'] = array(
+        '#type' => 'hidden',
+        '#value' => '',
+      );
+    }
+  }
+}
+
+/**
+ * Additional submit handler for the edit profile form.
+ */
+function progressive_profiling_profile_form_submit(&$form, &$form_state) {
+  // The changed profile fields variable is changed with javascript, so we have
+  // to get the value of it from the input and not form the values of the form
+  // state.
+  if (!empty($form_state['input']['changed_profile_fields'])) {
+    $changed_profile_fields = array_unique(explode(',', $form_state['input']['changed_profile_fields']));
+    // Now, make sure that the fields are actually valid.
+    $changed_profile_fields = array_intersect($changed_profile_fields, $form_state['values']['profiling_fields']);
+    // And mark them as completed.
+    progressive_profiling_complete_fields($form_state['values']['uid'], $changed_profile_fields);
   }
 }

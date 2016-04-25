@@ -152,6 +152,28 @@ function progressive_profiling_schema() {
       ),
     ),
   );
+
+  $schema['progressive_profiling_completed_fields'] = array(
+    'description' => 'Stores the fields configuration.',
+    'fields' => array(
+      'uid' => array(
+        'description' => 'The user id.',
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'field_name' => array(
+        'type' => 'varchar',
+        'length' => 64,
+        'not null' => TRUE,
+        'default' => '',
+        'description' => 'The machine name of the account field.',
+      ),
+    ),
+    'indexes' => array(
+      'uid' => array('uid'),
+    ),
+  );
   return $schema;
 }
 
@@ -163,6 +185,21 @@ function progressive_profiling_update_7001() {
     'progressive_profiling_areas',
     'progressive_profiling_resources_access',
     'progressive_profiling_last_answer_time'
+  );
+  $schema = progressive_profiling_schema();
+  foreach ($tables_to_check as $table_name) {
+    if (!db_table_exists($table_name)) {
+      db_create_table($table_name, $schema[$table_name]);
+    }
+  }
+}
+
+/**
+ * Implements hook_update_N(). Creats the progressive_profiling_completed_fields table.
+ */
+function progressive_profiling_update_7002() {
+  $tables_to_check = array(
+    'progressive_profiling_completed_fields',
   );
   $schema = progressive_profiling_schema();
   foreach ($tables_to_check as $table_name) {
