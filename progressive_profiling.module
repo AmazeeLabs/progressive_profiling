@@ -487,7 +487,8 @@ function progressive_profiling_form($form, &$form_state, $account, $profile_fiel
     '#type' => 'value',
     '#value' => $area->area_id,
   );
-  $form['submit'] = array(
+  $form['profiling_actions'] = array('#type' => 'actions');
+  $form['profiling_actions']['submit'] = array(
     '#type' => 'submit',
     // @todo: maybe integrate with i18n here?
     '#value' => !empty($area->configuration['submit_button_text']) ? t($area->configuration['submit_button_text']) : t('Submit'),
