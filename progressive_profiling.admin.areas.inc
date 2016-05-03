@@ -131,6 +131,12 @@ function progressive_profiling_areas_add_edit_form($form, &$form_state, $area = 
     '#title' => t('Form title'),
     '#default_value' => !empty($area->configuration['form_title']) ? $area->configuration['form_title'] : 'To access the content, please fill in the following fields.',
   );
+  $area_elements['popup_title'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Popup title'),
+    '#default_value' => !empty($area->configuration['popup_title']) ? $area->configuration['popup_title'] : '',
+    '#description' => t('Please provide a short popup title, so that it can fit on smaller screen sizes too.'),
+  );
   $area_elements['questions_nr'] = array(
     '#type' => 'textfield',
     '#title' => t('Amount of questions to ask'),
@@ -167,6 +173,8 @@ function progressive_profiling_areas_add_edit_form_submit(&$form, &$form_state) 
   $area->area_title = $form_state['values']['area_title'];
   $area->configuration['conditions_logic'] = $form_state['values']['logic'];
   $area->configuration['submit_button_text'] = $form_state['values']['submit_button_text'];
+  $area->configuration['form_title'] = $form_state['values']['form_title'];
+  $area->configuration['popup_title'] = $form_state['values']['popup_title'];
   $area->configuration['questions_nr'] = $form_state['values']['questions_nr'];
 
   progressive_profiling_area_save($area);

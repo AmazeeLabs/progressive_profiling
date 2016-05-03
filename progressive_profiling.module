@@ -461,6 +461,10 @@ function progressive_profiling_form($form, &$form_state, $account, $profile_fiel
     '#type' => 'item',
     '#markup' => !empty($area->configuration['form_title']) ? t($area->configuration['form_title']) : t('To access the content, please fill in the following fields.'),
   );
+  $form['fields']['popup_title'] = array(
+    '#type' => 'hidden',
+    '#value' => !empty($area->configuration['popup_title']) ? t($area->configuration['popup_title']) : '',
+  );
   ctools_include('fields');
   $weight = 0;
   foreach ($profile_fields as $profile_field) {
