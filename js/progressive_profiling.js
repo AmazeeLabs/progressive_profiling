@@ -6,8 +6,9 @@
         Drupal.CTools.Modal.show('modal-popup-small');
         $('#modalContent').addClass('modal-content-profiling');
         $('#modal-content').empty().prepend(profiling_form);
-        $('#modal-title').html(profiling_form.find('#edit-title').text());
-        profiling_form.find('#edit-title').remove();
+        $('#modal-title').html('');
+        //$('#modal-title').html(profiling_form.find('#edit-title').text());
+        //profiling_form.find('#edit-title').remove();
       }
     }
   }

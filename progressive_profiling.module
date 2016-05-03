@@ -453,13 +453,13 @@ function progressive_profiling_page_build(&$page) {
  */
 function progressive_profiling_form($form, &$form_state, $account, $profile_fields, $area, $resource_id) {
   $form['#parents'] = array();
-  $form['title'] = array(
-    '#type' => 'item',
-    '#markup' => !empty($area->configuration['form_title']) ? t($area->configuration['form_title']) : t('To access the content, please fill in the following fields.'),
-  );
   $form['fields'] = array(
     '#prefix' => '<div id="progressive-profiling-fields">',
     '#suffix' => '</div>',
+  );
+  $form['fields']['title'] = array(
+    '#type' => 'item',
+    '#markup' => !empty($area->configuration['form_title']) ? t($area->configuration['form_title']) : t('To access the content, please fill in the following fields.'),
   );
   ctools_include('fields');
   $weight = 0;
