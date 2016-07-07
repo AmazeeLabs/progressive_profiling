@@ -143,6 +143,15 @@ function progressive_profiling_areas_add_edit_form($form, &$form_state, $area = 
     '#description' => t('Input the amount of questions to ask for this area.'),
     '#default_value' => !empty($area->configuration['questions_nr']) ? $area->configuration['questions_nr'] : 2,
   );
+  $area_elements['access_to_area'] = array(
+    '#type' => 'radios',
+    '#title' => t('Access to area'),
+    '#options' => array(
+      'path' => t('Path based: allow users to directly access a resource only if they answered the questions for the resource.'),
+      'area' => t('Area based: allow users to directly access a resource if they answered the questions for any of the resources of the area.'),
+    ),
+    '#default_value' => !empty($area->configuration['access_to_area']) ? $area->configuration['access_to_area'] : 'path',
+  );
   $area_elements['actions']['submit'] = array(
     '#type' => 'submit',
     '#value' => !empty($area) ? t('Update') :t('Add'),
@@ -176,6 +185,7 @@ function progressive_profiling_areas_add_edit_form_submit(&$form, &$form_state) 
   $area->configuration['form_title'] = $form_state['values']['form_title'];
   $area->configuration['popup_title'] = $form_state['values']['popup_title'];
   $area->configuration['questions_nr'] = $form_state['values']['questions_nr'];
+  $area->configuration['access_to_area'] = $form_state['values']['access_to_area'];
 
   progressive_profiling_area_save($area);
   drupal_set_message($message);

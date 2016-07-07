@@ -98,14 +98,25 @@ function progressive_profiling_schema() {
         'default' => '',
         'description' => 'The unique identifier of the resource.',
       ),
+      'area_id' => array(
+        'description' => 'The area where the user was asked to fill in the fields.',
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
     ),
     'indexes' => array(
       'uid_resource_id' => array('uid', 'resource_id'),
+      'uid_area_id' => array('uid', 'area_id'),
     ),
     'foreign keys' => array(
       'uid' => array(
         'table' => 'users',
         'columns' => array('uid' => 'uid'),
+      ),
+      'area_id' => array(
+        'table' => 'progressive_profiling_areas',
+        'columns' => array('area_id' => 'area_id'),
       ),
     ),
   );
@@ -206,5 +217,17 @@ function progressive_profiling_update_7002() {
     if (!db_table_exists($table_name)) {
       db_create_table($table_name, $schema[$table_name]);
     }
+  }
+}
+
+/**
+ * Adds the area_id field to the progressive_profiling_resources_access table.
+ */
+function progressive_profiling_update_7003() {
+  if (!db_field_exists('progressive_profiling_resources_access', 'area_id')) {
+    $schema = progressive_profiling_schema();
+    $indexes = $schema['progressive_profiling_resources_access'];
+    unset($indexes['fields'], $indexes['indexes']['uid_resource_id'], $indexes['foreign keys']['uid']);
+    db_add_field('progressive_profiling_resources_access', 'area_id', $schema['progressive_profiling_resources_access']['fields']['area_id'], $indexes);
   }
 }

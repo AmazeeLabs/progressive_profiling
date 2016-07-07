@@ -543,7 +543,7 @@ function progressive_profiling_form_submit(&$form, &$form_state) {
 
   db_merge('progressive_profiling_resources_access')
     ->key(array('uid' => $form_state['values']['account_id'], 'resource_id' => $form_state['values']['resource_id']))
-    ->fields(array('uid' => $form_state['values']['account_id'], 'resource_id' => $form_state['values']['resource_id']))
+    ->fields(array('uid' => $form_state['values']['account_id'], 'resource_id' => $form_state['values']['resource_id'], 'area_id' => $form_state['values']['area_id']))
     ->execute();
 
   // Last thing, mark the fields as being completed.
@@ -640,11 +640,18 @@ function progressive_profiling_check_for_fields($account = NULL, $path = NULL) {
   $access = progressive_profiling_check_general_access($account, $contexts, $resource_id);
   // Only continue if the conditions for the general settings are met.
   if ($access) {
-    $area = progressive_profiling_get_matched_area($account, $contexts, $resource_id);
+    $area = progressive_profiling_get_matched_area($account, $contexts);
     // If we found an area, we can search for the next fields which we should
     // ask the user.
     if (!empty($area)) {
-      $profile_fields = progressive_profile_get_next_fields($account, $area, $contexts, $resource_id);
+      // But first, check if actually the user has access to the area (meaning
+      // that he has access to see questions for this area, not that if he has
+      // access to the resources of the area).
+      $area_access = progressive_profile_check_area_access($account, $area);
+      if ($area_access) {
+        // And finally, we can saerch for the next fields to be displayed.
+        $profile_fields = progressive_profile_get_next_fields($account, $area, $contexts, $resource_id);
+      }
     }
   }
   // When we have profile fields, we also want to return the area where these
@@ -703,6 +710,32 @@ function progressive_profiling_check_general_access($account, $contexts, $resour
 }
 
 /**
+ * Checks if an user has access to see questions for an area.
+ *
+ * @param $account
+ *  An user account object.
+ *
+ * @param object $area
+ *  A profiling area object.
+ */
+function progressive_profile_check_area_access($account, $area) {
+  // If the area configuration is to allow the access by 'area', then we will
+  // check the access, otherwise, we return TRUE.
+  if (!empty($area->configuration['access_to_area']) && $area->configuration['access_to_area'] == 'area') {
+    $result = db_select('progressive_profiling_resources_access', 'ppra')->fields('ppra')
+      ->condition('ppra.uid', $account->uid)->condition('ppra.area_id', $area->area_id)
+      ->execute()->fetch();
+    // If we found the the user has access to see resources in this area, return
+    // FALSE, because this means he should not be able to see questions for this
+    // area.
+    if (!empty($result)) {
+      return FALSE;
+    }
+  }
+  return TRUE;
+}
+
+/**
  * Searches for the first area that matches the conditions for a set of
  * contexts.
  *
@@ -711,11 +744,8 @@ function progressive_profiling_check_general_access($account, $contexts, $resour
  *
  * @param $contexts
  *  An array of contexts for the conditions.
- *
- * @param string $resource_id
- *  The id of the resource for which we check the areas.
  */
-function progressive_profiling_get_matched_area($account, $contexts, $resource_id = NULL) {
+function progressive_profiling_get_matched_area($account, $contexts) {
   ctools_include('context');
   $all_areas = progressive_profiling_areas_load_all();
   foreach ($all_areas as $area) {
@@ -723,8 +753,7 @@ function progressive_profiling_get_matched_area($account, $contexts, $resource_i
     if (!$area->status) {
       continue;
     }
-    // @todo: one more thing to check is if the user already answered
-    // questions for this area.
+
     $settings['plugins'] = !empty($area->configuration['conditions']) ? $area->configuration['conditions'] : array();
     $settings['logic'] = !empty($area->configuration['conditions_logic']) ? $area->configuration['conditions_logic'] : 'and';
     if (ctools_access($settings, $contexts)) {
