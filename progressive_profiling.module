@@ -678,6 +678,11 @@ function progressive_profiling_check_for_fields($account = NULL, $path = NULL) {
  *  The id of the resource for which we check the access.
  */
 function progressive_profiling_check_general_access($account, $contexts, $resource_id) {
+  // If the user can skip the profiling, then we return FALSE, it means the user
+  // should not see the profiling questions.
+  if (user_access('skip progressive profiling')) {
+    return FALSE;
+  }
   // First, check if the user has direct access to the resource. If yes, then we
   // will actually return FALSE, because then the user should not see the
   // fields.
